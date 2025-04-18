@@ -1,0 +1,319 @@
+/* Import fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=EB+Garamond:wght@400;500;600&display=swap');
+
+:root {
+  /* Color variables from spec */
+  --color-deep-brown: #6B4F4F;
+  --color-stone-gray: #A0A0A0;
+  --color-green: #5F7464;
+  --color-sandstone: #C0A183;
+  --color-sky-blue: #A7C5E8;
+  --color-ochre: #D48C3F;
+  --color-parchment: #F4F1EA;
+  --color-slate: #3C3C3C;
+  
+  /* Accent colors */
+  --color-positive: #4CAF50;
+  --color-negative: #F44336;
+  
+  /* Spacing */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  
+  /* Border radius */
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  
+  /* Typography */
+  --font-family-sans: 'Inter', system-ui, sans-serif;
+  --font-family-serif: 'EB Garamond', serif;
+  
+  /* Base styles */
+  font-family: var(--font-family-sans);
+  line-height: 1.5;
+  font-weight: 400;
+  font-size: 16px;
+  
+  /* Colors */
+  color: var(--color-slate);
+  background-color: var(--color-parchment);
+  
+  /* Text rendering */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Reset margins */
+body, h1, h2, h3, h4, h5, h6, p, ul, ol {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Container */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-md);
+  box-sizing: border-box;
+}
+
+/* Typography */
+h1, h2, h3 {
+  font-family: var(--font-family-serif);
+  font-weight: 500;
+  line-height: 1.2;
+  margin-bottom: var(--space-md);
+}
+
+h1 {
+  font-size: 2rem;
+}
+
+h2 {
+  font-size: 1.5rem;
+}
+
+h3 {
+  font-size: 1.25rem;
+}
+
+p {
+  margin-bottom: var(--space-md);
+}
+
+/* Links */
+a {
+  color: var(--color-green);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--color-deep-brown);
+}
+
+/* Buttons */
+button {
+  font-family: var(--font-family-sans);
+  font-size: 1rem;
+  font-weight: 500;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-deep-brown);
+  background-color: var(--color-deep-brown);
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+button:hover {
+  background-color: var(--color-parchment);
+  color: var(--color-deep-brown);
+}
+
+button:focus {
+  outline: 2px solid var(--color-deep-brown);
+  outline-offset: 2px;
+}
+
+button.secondary {
+  background-color: var(--color-parchment);
+  color: var(--color-deep-brown);
+}
+
+button.secondary:hover {
+  background-color: var(--color-stone-gray);
+  color: white;
+}
+
+/* Form elements */
+input, select, textarea {
+  font-family: var(--font-family-sans);
+  font-size: 1rem;
+  padding: var(--space-sm);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--color-stone-gray);
+  background-color: white;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--color-green);
+  border-color: var(--color-green);
+}
+
+/* Cards */
+.card {
+  background-color: white;
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+/* Grid */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--space-md);
+}
+
+/* Flex utilities */
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.gap-sm {
+  gap: var(--space-sm);
+}
+
+.gap-md {
+  gap: var(--space-md);
+}
+
+/* Spacing utilities */
+.mt-sm { margin-top: var(--space-sm); }
+.mt-md { margin-top: var(--space-md); }
+.mt-lg { margin-top: var(--space-lg); }
+
+.mb-sm { margin-bottom: var(--space-sm); }
+.mb-md { margin-bottom: var(--space-md); }
+.mb-lg { margin-bottom: var(--space-lg); }
+
+.p-sm { padding: var(--space-sm); }
+.p-md { padding: var(--space-md); }
+.p-lg { padding: var(--space-lg); }
+
+/* Text utilities */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+
+.text-positive { color: var(--color-positive); }
+.text-negative { color: var(--color-negative); }
+
+/* Charts */
+.chart-container {
+  width: 100%;
+  height: 300px;
+  position: relative;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .container {
+    padding: var(--space-sm);
+  }
+  
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  
+  h1 {
+    font-size: 1.5rem;
+  }
+  
+  h2 {
+    font-size: 1.25rem;
+  }
+}
+
+/* Loading spinner */
+.spinner {
+  width: 40px;
+  height: 40px;
+  margin: var(--space-md) auto;
+  border: 4px solid rgba(95, 116, 100, 0.2);
+  border-radius: 50%;
+  border-top-color: var(--color-green);
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Table styles */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--space-md);
+}
+
+th, td {
+  padding: var(--space-sm);
+  text-align: left;
+  border-bottom: 1px solid var(--color-stone-gray);
+}
+
+th {
+  font-weight: 600;
+  background-color: rgba(95, 116, 100, 0.1);
+}
+
+tr:hover {
+  background-color: rgba(95, 116, 100, 0.05);
+}
+
+/* Date slider */
+.date-slider {
+  width: 100%;
+  margin: var(--space-md) 0;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 8px;
+  background: linear-gradient(to right, var(--color-parchment), var(--color-green));
+  border-radius: 5px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-deep-brown);
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-deep-brown);
+  cursor: pointer;
+}
