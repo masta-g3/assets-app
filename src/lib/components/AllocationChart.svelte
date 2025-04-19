@@ -19,12 +19,22 @@
       platformTotals.set(entry.platform, currentTotal + entry.amount);
     });
     
+    // Filter out platforms with negative totals
+    const positivePlatformTotals = new Map<string, number>();
+    platformTotals.forEach((amount, platform) => {
+      if (amount >= 0) {
+        positivePlatformTotals.set(platform, amount);
+      }
+    });
+    
     // Convert to arrays for Chart.js
     const platforms: string[] = [];
     const amounts: number[] = [];
     const colors: string[] = [];
     
-    platformTotals.forEach((amount, platform) => {
+    // Sort platforms alphabetically to keep color order stable across dates
+    const sortedEntries = Array.from(positivePlatformTotals.entries()).sort(([a], [b]) => a.localeCompare(b));
+    sortedEntries.forEach(([platform, amount]) => {
       platforms.push(platform);
       amounts.push(amount);
       colors.push(getPlatformColor(platform));

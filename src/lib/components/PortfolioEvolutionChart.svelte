@@ -180,7 +180,7 @@
         labels: dates,
         datasets: [
           {
-            label: 'Expected Rate (W-Avg)',
+            label: 'Expected 1Y Rate (W-Avg)',
             data: expectedRates,
             borderColor: 'rgb(75, 192, 192)',
             backgroundColor: 'rgba(75, 192, 192, 0.5)',
@@ -303,7 +303,7 @@
 
 <div class="evolution-chart card">
   <div class="chart-header">
-    <h3>{showRatesChart ? 'Monthly Rate Analysis' : 'Portfolio Evolution'}</h3>
+    <h3>{showRatesChart ? 'Return Rate Analysis' : 'Portfolio Evolution'}</h3>
     <div class="toggle-buttons">
       <button class:active={!showRatesChart} on:click={() => showRatesChart = false}>Value</button>
       <button class:active={showRatesChart} on:click={() => showRatesChart = true} disabled={monthlyRateData.dates.length < 2}>Rates</button>

@@ -41,24 +41,24 @@
       chart.data.labels = sortedPlatforms;
       chart.data.datasets[0].data = sortedData;
       chart.data.datasets[0].backgroundColor = colors;
-      
-      // Update the Y-axis title text via options
-      // Ensure scales and y scale exist and have a title property before updating
-      if (chart.options.scales?.y && chart.options.scales.y.title) {
-        chart.options.scales.y.title.text = showPercentage ? 'Change (%)' : 'Change ($)';
-        chart.options.scales.y.title.display = true; // Also ensure display is set
-      } else {
-        // Fallback or handle cases where y scale might not be configured as expected
-        // For now, we'll assume it's always a CartesianScale and try setting it.
-        // This might need more robust handling if scale types can vary.
-        chart.options.scales = {
-          ...chart.options.scales,
-          y: {
-            ...(chart.options.scales?.y),
-            title: {
-              display: true,
-              text: showPercentage ? 'Change (%)' : 'Change ($)'
-            }
+
+      // Update chart options directly for type safety
+      if (chart.options.scales) {
+        // Update X-axis title
+        chart.options.scales.x = {
+          ...chart.options.scales.x, // Preserve other x-axis settings
+          title: {
+            display: true,
+            text: showPercentage ? 'Change (%)' : 'Change ($)'
+          }
+        };
+
+        // Update Y-axis title
+        chart.options.scales.y = {
+          ...chart.options.scales.y, // Preserve other y-axis settings
+          title: {
+            display: false,
+            text: 'Platform'
           }
         };
       }
@@ -86,12 +86,20 @@
             beginAtZero: true,
             grid: {
               display: false
+            },
+            title: {
+              display: true,
+              text: showPercentage ? 'Change (%)' : 'Change ($)'
             }
           },
           y: {
             title: {
-              display: true,
-              text: showPercentage ? 'Change (%)' : 'Change ($)'
+              display: false,
+              text: 'Platform'
+            },
+            grid: {
+              // If there were specific grid settings for y, they would go here
+              // Example: display: true, color: 'rgba(0, 0, 0, 0.1)'
             }
           }
         },

@@ -5,6 +5,10 @@
   export let summary: AssetSummary;
   export let comparisonPeriod: 'MoM' | 'YTD' | 'YoY' = 'MoM';
   
+  // Calculate total debt from summary
+  $: totalDebt = Object.values(summary.platformData || {})
+    .reduce((sum, platform) => sum + (platform.amount < 0 ? platform.amount : 0), 0);
+  
   $: periodLabel = comparisonPeriod === 'MoM' ? 'MoM' : (comparisonPeriod === 'YoY' ? 'YoY' : 'YTD');
   
   // Determine change indicator
@@ -29,6 +33,9 @@
     <div class="metric">
       <div class="metric-label">Total Portfolio Value</div>
       <div class="metric-value">{formatCurrency(summary.totalValue)}</div>
+      {#if totalDebt < 0}
+        <div class="metric-sub-value negative">Debt: {formatCurrency(Math.abs(totalDebt))}</div>
+      {/if}
     </div>
     
     <div class="metric">
@@ -88,6 +95,12 @@
   .metric-value {
     font-size: 1.5rem;
     font-weight: 600;
+  }
+  
+  .metric-sub-value {
+    font-size: 0.9rem;
+    font-weight: 400;
+    margin-top: -2px; /* Adjust spacing */
     margin-bottom: var(--space-xs);
   }
   
