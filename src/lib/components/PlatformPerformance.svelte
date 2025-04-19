@@ -41,7 +41,28 @@
       chart.data.labels = sortedPlatforms;
       chart.data.datasets[0].data = sortedData;
       chart.data.datasets[0].backgroundColor = colors;
-      chart.options.scales!.y!.title!.text = showPercentage ? 'Change (%)' : 'Change ($)';
+      
+      // Update the Y-axis title text via options
+      // Ensure scales and y scale exist and have a title property before updating
+      if (chart.options.scales?.y && chart.options.scales.y.title) {
+        chart.options.scales.y.title.text = showPercentage ? 'Change (%)' : 'Change ($)';
+        chart.options.scales.y.title.display = true; // Also ensure display is set
+      } else {
+        // Fallback or handle cases where y scale might not be configured as expected
+        // For now, we'll assume it's always a CartesianScale and try setting it.
+        // This might need more robust handling if scale types can vary.
+        chart.options.scales = {
+          ...chart.options.scales,
+          y: {
+            ...(chart.options.scales?.y),
+            title: {
+              display: true,
+              text: showPercentage ? 'Change (%)' : 'Change ($)'
+            }
+          }
+        };
+      }
+
       chart.update();
       return;
     }
@@ -128,22 +149,22 @@
     dataView = dataView === 'percentage' ? 'absolute' : 'percentage';
   }
   
-  // Find best and worst performing platforms
-  $: bestPlatform = findBestPlatform();
-  $: worstPlatform = findWorstPlatform();
+  // Find best and worst performing platforms whenever summary or view changes
+  $: bestPlatform = findBestPlatform(summary, showPercentage);
+  $: worstPlatform = findWorstPlatform(summary, showPercentage);
   
-  function findBestPlatform() {
-    if (summary.platforms.length === 0) return null;
+  function findBestPlatform(sum: AssetSummary, usePercentage: boolean) {
+    if (sum.platforms.length === 0) return null;
     
     let best = { platform: '', value: -Infinity };
     
-    summary.platforms.forEach(platform => {
-      const data = summary.platformData[platform];
+    sum.platforms.forEach(platform => {
+      const data = sum.platformData[platform];
       
       // Skip platforms with no previous data
       if (data.previousAmount === 0) return;
       
-      const value = showPercentage ? data.percentChange : data.absoluteChange;
+      const value = usePercentage ? data.percentChange : data.absoluteChange;
       
       if (value > best.value) {
         best = { platform, value };
@@ -156,18 +177,18 @@
     } : null;
   }
   
-  function findWorstPlatform() {
-    if (summary.platforms.length === 0) return null;
+  function findWorstPlatform(sum: AssetSummary, usePercentage: boolean) {
+    if (sum.platforms.length === 0) return null;
     
     let worst = { platform: '', value: Infinity };
     
-    summary.platforms.forEach(platform => {
-      const data = summary.platformData[platform];
+    sum.platforms.forEach(platform => {
+      const data = sum.platformData[platform];
       
       // Skip platforms with no previous data
       if (data.previousAmount === 0) return;
       
-      const value = showPercentage ? data.percentChange : data.absoluteChange;
+      const value = usePercentage ? data.percentChange : data.absoluteChange;
       
       if (value < worst.value) {
         worst = { platform, value };
@@ -186,10 +207,12 @@
     <h3>Platform Performance</h3>
     
     <div class="view-toggle">
-      <button class="toggle-btn {dataView === 'percentage' ? 'active' : ''}" on:click={() => dataView = 'percentage'}>
+      <button class="toggle-btn {dataView === 'percentage' ? 'active' : ''}" 
+              on:click={() => dataView = 'percentage'}>
         Percentage
       </button>
-      <button class="toggle-btn {dataView === 'absolute' ? 'active' : ''}" on:click={() => dataView = 'absolute'}>
+      <button class="toggle-btn {dataView === 'absolute' ? 'active' : ''}" 
+              on:click={() => dataView = 'absolute'}>
         Absolute
       </button>
     </div>
@@ -248,25 +271,37 @@
   }
   
   .view-toggle {
-    display: flex;
-    gap: 2px;
-    background-color: rgba(95, 116, 100, 0.1);
-    padding: 2px;
-    border-radius: var(--border-radius-sm);
+    display: inline-flex;
+    border-radius: var(--border-radius-md);
+    overflow: hidden;
+    border: 1px solid rgba(109, 90, 80, 0.3);
   }
   
   .toggle-btn {
-    padding: var(--space-xs) var(--space-sm);
-    font-size: 0.8rem;
-    border: none;
+    padding: var(--space-sm) var(--space-md);
+    font-size: 0.95rem;
+    font-weight: 500;
     background-color: transparent;
-    color: var(--color-slate);
-    border-radius: calc(var(--border-radius-sm) - 2px);
+    border: none;
+    color: var(--color-stone-gray);
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    border-radius: 0;
+    border-right: 1px solid rgba(109, 90, 80, 0.3);
+  }
+  
+  .toggle-btn:last-child {
+    border-right: none;
+  }
+  
+  .toggle-btn:hover {
+    background-color: rgba(155, 155, 147, 0.1);
   }
   
   .toggle-btn.active {
-    background-color: white;
-    box-shadow: var(--shadow-sm);
+    background-color: rgba(255, 255, 255, 0.7);
+    color: var(--color-deep-brown);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
   }
   
   .performance-stats {

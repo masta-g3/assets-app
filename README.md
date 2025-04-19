@@ -28,6 +28,30 @@ Homestead is a privacy-focused asset management application that allows you to t
 3. Run the development server: `npm run dev`
 4. Build for production: `npm run build`
 
+## Development Workflow
+
+```bash
+# Install dependencies
+npm install
+
+# Start dev server
+npm run dev
+
+# Type‑check & lint
+npm run check
+
+# Production build
+npm run build
+```
+
+## Project Structure
+
+A detailed overview is available in [STRUCTURE.md](STRUCTURE.md).  The main app source lives in `src/` and components are grouped under `src/lib`.
+
+## Sample Data
+
+The repository contains `sample_data.csv` that can be imported via **Data Management → Import CSV** inside the application.  This is helpful for demos or initial testing.
+
 ## CSV Format
 
 Import and export data using CSV files with the following format:

@@ -321,4 +321,7 @@
       text-align: center;
     }
   }
+  
+  /* Add dark mode overrides for elements styled within App.svelte */
+  /* MOVED TO app.css */
 </style>

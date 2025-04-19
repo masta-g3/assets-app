@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { ALLOWED_PLATFORMS } from '../db';
   import type { AssetEntry } from '../db';
   import { formatCurrency, formatPercentage } from '../utils/calculations';
   import { assetStore } from '../stores/assetStore';
@@ -16,6 +15,7 @@
     rate: 0
   };
   let showAddForm = false;
+  let showDateInput = false;
   
   // Update edited entries when entries change
   $: {
@@ -37,6 +37,15 @@
       percentage: totalAmount > 0 ? (entry.amount / totalAmount) * 100 : 0
     };
   });
+  
+  // --- NEW: Derive unique platform names from the store --- 
+  let uniquePlatforms: string[] = [];
+  $: {
+    if ($assetStore.assets) {
+        const platformSet = new Set($assetStore.assets.map(a => a.platform));
+        uniquePlatforms = [...platformSet].sort();
+    }
+  }
   
   // Toggle edit mode
   function toggleEditMode() {
@@ -79,10 +88,11 @@
   // Toggle add form
   function toggleAddForm() {
     showAddForm = !showAddForm;
+    showDateInput = false;
     if (showAddForm) {
       newEntry = {
         date,
-        platform: ALLOWED_PLATFORMS[0],
+        platform: uniquePlatforms[0] || '',
         amount: 0,
         rate: 0
       };
@@ -91,13 +101,14 @@
   
   // Add new entry
   async function addNewEntry() {
-    if (!newEntry.platform || newEntry.amount <= 0) {
+    if (!newEntry.platform) {
       alert('Please fill in all fields correctly');
       return;
     }
     
     if (await assetStore.addEntry(newEntry)) {
       showAddForm = false;
+      showDateInput = false;
       newEntry = {
         date,
         platform: '',
@@ -107,6 +118,11 @@
     } else {
       alert('Failed to add new entry');
     }
+  }
+  
+  // Helper to reveal date picker
+  function requestDateChange() {
+    showDateInput = true;
   }
 </script>
 
@@ -136,13 +152,32 @@
   {#if showAddForm}
     <div class="add-form">
       <div class="form-grid">
+        <!-- Date (defaults to slider date) -->
+        <div class="form-group date-group">
+          <label for="assetDate">Date</label>
+          {#if showDateInput}
+            <input type="date" id="assetDate" bind:value={newEntry.date} />
+          {:else}
+            <div class="date-display">
+              <span>{newEntry.date}</span>
+              <button class="link-button" on:click={requestDateChange}>(Change)</button>
+            </div>
+          {/if}
+        </div>
+        <!-- Platform -->
         <div class="form-group">
           <label for="platform">Platform</label>
-          <select id="platform" bind:value={newEntry.platform}>
-            {#each ALLOWED_PLATFORMS as platform}
+          <input 
+            type="text" 
+            id="platform" 
+            bind:value={newEntry.platform}
+            list="platform-list" 
+          />
+          <datalist id="platform-list">
+            {#each uniquePlatforms as platform}
               <option value={platform}>{platform}</option>
             {/each}
-          </select>
+          </datalist>
         </div>
         
         <div class="form-group">
@@ -151,7 +186,6 @@
             type="number" 
             id="amount" 
             bind:value={newEntry.amount} 
-            min="0" 
             step="0.01"
           />
         </div>
@@ -162,7 +196,6 @@
             type="number" 
             id="rate" 
             bind:value={newEntry.rate} 
-            min="0" 
             max="100" 
             step="0.1"
           />
@@ -190,64 +223,73 @@
         </tr>
       </thead>
       <tbody>
-        {#if allocations.length === 0}
-          <tr>
-            <td colspan={editMode ? 5 : 4} class="no-data">
-              No assets for this date
-            </td>
-          </tr>
-        {:else}
-          {#each allocations as entry (entry.id)}
+        {#if editMode}
+          <!-- Edit Mode: Loop over editedEntries -->
+          {#each editedEntries as entry (entry.id)}
             <tr>
               <td>
-                {#if editMode}
-                  <select bind:value={entry.platform}>
-                    {#each ALLOWED_PLATFORMS as platform}
-                      <option value={platform}>{platform}</option>
-                    {/each}
-                  </select>
-                {:else}
-                  {entry.platform}
-                {/if}
+                <input 
+                  type="text" 
+                  bind:value={entry.platform}
+                  list="platform-list" 
+                />
               </td>
               <td>
-                {#if editMode}
-                  <input 
-                    type="number" 
-                    bind:value={entry.amount} 
-                    min="0" 
-                    step="0.01"
-                  />
-                {:else}
-                  {formatCurrency(entry.amount)}
-                {/if}
+                <input 
+                  type="number" 
+                  bind:value={entry.amount} 
+                  step="0.01"
+                />
               </td>
               <td>
-                {#if editMode}
-                  <input 
-                    type="number" 
-                    bind:value={entry.rate} 
-                    min="0" 
-                    max="100" 
-                    step="0.1"
-                  />
-                {:else}
-                  {formatPercentage(entry.rate)}
-                {/if}
+                <input 
+                  type="number" 
+                  bind:value={entry.rate} 
+                  max="100" 
+                  step="0.1"
+                />
               </td>
-              <td>{formatPercentage(entry.percentage)}</td>
-              {#if editMode}
-                <td>
-                  <button 
-                    class="delete-btn" 
-                    on:click={() => deleteEntry(entry.id!)}
-                  >
-                    Delete
-                  </button>
-                </td>
-              {/if}
+              <td><!-- Percentage column empty in edit mode --></td> 
+              <td>
+                <button 
+                  class="danger"
+                  on:click={() => deleteEntry(entry.id!)}
+                >
+                  Delete
+                </button>
+              </td>
             </tr>
-          {/each}
+          {:else} <!-- Handles empty editedEntries -->
+            <tr>
+              <td colspan={5} class="no-data">
+                No assets for this date
+              </td>
+            </tr>
+          {/each} <!-- Closes each editedEntries -->
+        {:else}
+          <!-- Display Mode: Loop over allocations -->
+          {#if allocations.length === 0}
+            <tr>
+              <td colspan={4} class="no-data">
+                No assets for this date
+              </td>
+            </tr>
+          {:else}
+            {#each allocations as entry (entry.id)}
+              <tr>
+                <td>
+                  {entry.platform}
+                </td>
+                <td>
+                  {formatCurrency(entry.amount)}
+                </td>
+                <td>
+                  {formatPercentage(entry.rate)}
+                </td>
+                <td>{formatPercentage(entry.percentage)}</td>
+              </tr>
+            {/each}
+          {/if}
         {/if}
       </tbody>
       <tfoot>
@@ -321,23 +363,13 @@
     font-style: italic;
   }
   
-  .delete-btn {
-    background-color: var(--color-negative);
-    color: white;
-    padding: var(--space-xs) var(--space-sm);
-    font-size: 0.8rem;
-  }
-  
-  .delete-btn:hover {
-    background-color: rgba(244, 67, 54, 0.8);
-    color: white;
-  }
-  
   .add-form {
     background-color: rgba(95, 116, 100, 0.05);
     border-radius: var(--border-radius-sm);
     padding: var(--space-md);
     margin-bottom: var(--space-md);
+    border-top: 1px solid var(--color-stone-gray);
+    border-bottom: 1px solid var(--color-stone-gray);
   }
   
   .form-grid {
@@ -357,6 +389,43 @@
     justify-content: flex-end;
     gap: var(--space-sm);
     margin-top: var(--space-md);
+  }
+  
+  .form-group input,
+  .form-group select {
+    border: 1px solid var(--color-stone-gray);
+  }
+  
+  .date-display {
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--color-stone-gray);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+  }
+  
+  .link-button {
+    background: none;
+    border: none;
+    color: var(--color-stone-gray);
+    cursor: pointer;
+    padding: 0 0 0 0.3rem;
+    font-size: 0.8rem;
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+  
+  .link-button:hover {
+    color: var(--color-green);
+  }
+  
+  .styled-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' stroke='%239B9B93' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.8rem center;
+    background-size: 1rem;
+    padding-right: 2rem;
   }
   
   @media (max-width: 768px) {

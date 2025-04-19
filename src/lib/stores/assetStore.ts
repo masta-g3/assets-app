@@ -5,8 +5,9 @@ import {
   sortByDate, 
   groupByDate, 
   calculateSummary, 
-  getPreviousDateEntries,
+  calculateMonthlyRates,
   getHistoricalEntries,
+  getYearStartEntries,
   type AssetSummary
 } from '../utils/calculations';
 
@@ -24,6 +25,14 @@ interface AssetState {
   summary: AssetSummary;
   comparisonPeriod: 'MoM' | 'YTD' | 'YoY';
   dataView: 'percentage' | 'absolute';
+  monthlyRateData: MonthlyRateData;
+}
+
+// Define structure for the rate data
+export interface MonthlyRateData {
+  dates: string[];
+  expectedRates: number[];
+  realizedRates: number[];
 }
 
 // Create the store with initial state
@@ -49,7 +58,8 @@ const createAssetStore = () => {
       platformData: {}
     },
     comparisonPeriod: 'MoM',
-    dataView: 'percentage'
+    dataView: 'percentage',
+    monthlyRateData: { dates: [], expectedRates: [], realizedRates: [] }
   };
   
   const { subscribe, set, update } = writable<AssetState>(initialState);
@@ -75,8 +85,8 @@ const createAssetStore = () => {
       // Get entries for selected date
       const currentEntries = entriesByDate.get(selectedDate) || [];
       
-      // Get previous date entries for comparison
-      const previousEntries = getPreviousDateEntries(selectedDate, allDates, entriesByDate);
+      // Get previous date entries based on default comparison period (MoM)
+      const previousEntries = getHistoricalEntries(selectedDate, 'MoM', allDates, entriesByDate);
       
       // Get month-over-month and year-over-year entries
       const momEntries = getHistoricalEntries(selectedDate, 'MoM', allDates, entriesByDate);
@@ -84,6 +94,9 @@ const createAssetStore = () => {
       
       // Calculate summary statistics
       const summary = calculateSummary(currentEntries, previousEntries);
+      
+      // Calculate monthly rates
+      const monthlyRateData = calculateMonthlyRates(allDates, entriesByDate);
       
       // Update store
       update(state => ({
@@ -97,7 +110,8 @@ const createAssetStore = () => {
         previousEntries,
         momEntries,
         yoyEntries,
-        summary
+        summary,
+        monthlyRateData
       }));
     } catch (error) {
       console.error('Failed to load assets:', error);
@@ -113,26 +127,59 @@ const createAssetStore = () => {
       }
       
       const currentEntries = state.entriesByDate.get(date) || [];
-      const previousEntries = getPreviousDateEntries(date, state.allDates, state.entriesByDate);
-      const momEntries = getHistoricalEntries(date, 'MoM', state.allDates, state.entriesByDate);
-      const yoyEntries = getHistoricalEntries(date, 'YoY', state.allDates, state.entriesByDate);
+      let previousEntries: AssetEntry[] = [];
+      if (state.comparisonPeriod === 'MoM') {
+        previousEntries = getHistoricalEntries(date, 'MoM', state.allDates, state.entriesByDate);
+      } else if (state.comparisonPeriod === 'YoY') {
+        previousEntries = getHistoricalEntries(date, 'YoY', state.allDates, state.entriesByDate);
+      } else {
+        previousEntries = getYearStartEntries(date, state.allDates, state.entriesByDate);
+      }
+
       const summary = calculateSummary(currentEntries, previousEntries);
+      
+      // Calculate monthly rates
+      const monthlyRateData = calculateMonthlyRates(state.allDates, state.entriesByDate);
       
       return {
         ...state,
         selectedDate: date,
         currentEntries,
         previousEntries,
-        momEntries,
-        yoyEntries,
-        summary
+        momEntries: getHistoricalEntries(date, 'MoM', state.allDates, state.entriesByDate),
+        yoyEntries: getHistoricalEntries(date, 'YoY', state.allDates, state.entriesByDate),
+        summary,
+        monthlyRateData
       };
     });
   };
   
   // Set comparison period
   const setComparisonPeriod = (period: 'MoM' | 'YTD' | 'YoY') => {
-    update(state => ({ ...state, comparisonPeriod: period }));
+    update(state => {
+      let previousEntries: AssetEntry[] = [];
+
+      if (period === 'MoM') {
+        previousEntries = getHistoricalEntries(state.selectedDate, 'MoM', state.allDates, state.entriesByDate);
+      } else if (period === 'YoY') {
+        previousEntries = getHistoricalEntries(state.selectedDate, 'YoY', state.allDates, state.entriesByDate);
+      } else {
+        previousEntries = getYearStartEntries(state.selectedDate, state.allDates, state.entriesByDate);
+      }
+
+      const summary = calculateSummary(state.currentEntries, previousEntries);
+
+      // Calculate monthly rates
+      const monthlyRateData = calculateMonthlyRates(state.allDates, state.entriesByDate);
+
+      return {
+        ...state,
+        comparisonPeriod: period,
+        previousEntries,
+        summary,
+        monthlyRateData
+      };
+    });
   };
   
   // Set data view mode

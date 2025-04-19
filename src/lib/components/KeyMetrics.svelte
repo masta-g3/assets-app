@@ -5,6 +5,8 @@
   export let summary: AssetSummary;
   export let comparisonPeriod: 'MoM' | 'YTD' | 'YoY' = 'MoM';
   
+  $: periodLabel = comparisonPeriod === 'MoM' ? 'MoM' : (comparisonPeriod === 'YoY' ? 'YoY' : 'YTD');
+  
   // Determine change indicator
   function getChangeClass(value: number): string {
     if (value > 0) return 'positive';
@@ -27,13 +29,10 @@
     <div class="metric">
       <div class="metric-label">Total Portfolio Value</div>
       <div class="metric-value">{formatCurrency(summary.totalValue)}</div>
-      <div class="metric-change {getChangeClass(summary.percentChange)}">
-        {getChangeArrow(summary.percentChange)} {formatPercentage(summary.percentChange)}
-      </div>
     </div>
     
     <div class="metric">
-      <div class="metric-label">{comparisonPeriod} Change</div>
+      <div class="metric-label">{periodLabel} Change</div>
       <div class="metric-value {getChangeClass(summary.absoluteChange)}">
         {formatCurrency(summary.absoluteChange)}
       </div>

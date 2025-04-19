@@ -190,6 +190,18 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button.danger {
+  background-color: var(--color-negative);
+  border-color: var(--color-negative);
+  color: white;
+}
+
+button.danger:hover {
+  background-color: rgba(255, 255, 255, 0.7); /* Match secondary hover bg */
+  color: var(--color-negative);
+  border-color: var(--color-negative);
+}
+
 /* Form elements */
 input, select, textarea {
   font-family: var(--font-family-sans);
@@ -386,4 +398,112 @@ input[type="range"]::-moz-range-thumb {
   border-radius: 50%;
   background: var(--color-deep-brown);
   cursor: pointer;
+}
+
+/* Dark mode base overrides */
+body.dark-mode {
+  --color-parchment: #2c2a26; /* Dark parchment */
+  --color-stone-gray: #8a8a82; /* Light gray for dark bg */
+  --color-slate: #eae6df; /* Light text */
+  --color-positive: #7fbf7c; /* Softer retro‑green (terminal vibe) */
+  --color-negative: #d97a68; /* Slightly muted red */
+
+  background-color: var(--color-parchment);
+  color: var(--color-slate);
+  background-image: none;
+}
+
+body.dark-mode a {
+  color: var(--color-sky-blue);
+}
+
+body.dark-mode a:hover {
+  color: var(--color-ochre);
+}
+
+body.dark-mode .card {
+  background-color: rgba(44, 42, 38, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+body.dark-mode input,
+body.dark-mode select,
+body.dark-mode textarea {
+  background-color: #3a3833;
+  border-color: var(--color-stone-gray);
+  color: var(--color-slate);
+}
+
+body.dark-mode th {
+  background-color: rgba(155, 155, 147, 0.1);
+}
+
+body.dark-mode tr:hover {
+  background-color: rgba(155, 155, 147, 0.05);
+}
+
+/* Dark mode header & footer overrides */
+body.dark-mode .site-header {
+  background-color: rgba(44, 42, 38, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+body.dark-mode .site-header .tagline {
+  color: var(--color-stone-gray);
+}
+
+body.dark-mode .site-header .logo h1 {
+  color: var(--color-sky-blue);
+}
+
+body.dark-mode .site-header .logo h1::after {
+  background: linear-gradient(90deg,
+    var(--color-sky-blue) 0%,
+    var(--color-moss) 50%,
+    transparent 100%);
+}
+
+body.dark-mode footer {
+  background-color: rgba(44, 42, 38, 0.9);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--color-stone-gray);
+}
+
+/* Ensure comparison period panel follows dark palette */
+body.dark-mode .period-selector {
+  background-color: #3a3833 !important; /* darker surface */
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+body.dark-mode .period-selector span {
+  color: var(--color-slate);
+}
+
+/* Dark mode overrides for specific elements (moved from App.svelte) */
+body.dark-mode .period-btn {
+  border: 1px solid var(--color-stone-gray);
+  color: var(--color-slate);
+  background-color: transparent;
+}
+
+body.dark-mode .period-btn.active {
+  background-color: var(--color-deep-brown);
+  color: var(--color-parchment); /* Use dark text color */
+  border-color: var(--color-deep-brown);
+}
+
+body.dark-mode .tab-btn {
+  color: var(--color-stone-gray);
+}
+
+body.dark-mode .tab-btn:hover {
+  color: var(--color-deep-brown);
+}
+
+body.dark-mode .tab-btn.active {
+  color: var(--color-deep-brown);
+}
+
+body.dark-mode .tabs {
+  border-bottom: 1px solid rgba(138, 138, 130, 0.5); /* Lighter stone-gray */
 }
