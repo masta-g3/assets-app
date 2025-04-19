@@ -70,11 +70,27 @@ export const getPreviousDateEntries = (
 ): AssetEntry[] => {
   // Find the previous date in the sorted list of all dates
   const currentIndex = allDates.indexOf(currentDate);
-  if (currentIndex <= 0 || currentIndex >= allDates.length) {
+  
+  // If this is the most recent date (index 0), use the second most recent date
+  if (currentIndex === 0 && allDates.length > 1) {
+    const previousDate = allDates[1];
+    return entriesByDate.get(previousDate) || [];
+  }
+  
+  // If this is the oldest date or invalid, try to find the closest older date
+  if (currentIndex < 0 || currentIndex >= allDates.length - 1) {
+    // Try to find any older date to use as comparison
+    for (let i = 0; i < allDates.length; i++) {
+      const dateA = new Date(allDates[i]);
+      const dateB = new Date(currentDate);
+      if (dateA < dateB) {
+        return entriesByDate.get(allDates[i]) || [];
+      }
+    }
     return [];
   }
   
-  const previousDate = allDates[currentIndex - 1];
+  const previousDate = allDates[currentIndex + 1]; // Since dates are newest-to-oldest
   return entriesByDate.get(previousDate) || [];
 };
 
@@ -96,18 +112,43 @@ export const getHistoricalEntries = (
   
   const targetDateStr = format(targetDate, 'yyyy-MM-dd');
   
+  // If there's only one date available, use it for comparison (better than nothing)
+  if (allDates.length === 1) {
+    return entriesByDate.get(allDates[0]) || [];
+  }
+  
+  // If there are just two dates, use the older one for any comparison
+  if (allDates.length === 2 && currentDate === allDates[0]) {
+    return entriesByDate.get(allDates[1]) || [];
+  }
+  
   // Find closest date to target
   let closestDate = '';
   let smallestDiff = Infinity;
   
   for (const date of allDates) {
-    const dateObj = parse(date, 'yyyy-MM-dd', new Date());
-    const targetObj = parse(targetDateStr, 'yyyy-MM-dd', new Date());
-    const diff = Math.abs(dateObj.getTime() - targetObj.getTime());
+    // Skip current date
+    if (date === currentDate) continue;
     
-    if (diff < smallestDiff && isBefore(dateObj, parse(currentDate, 'yyyy-MM-dd', new Date()))) {
+    const entryDateObj = parse(date, 'yyyy-MM-dd', new Date());
+    const targetObj = parse(targetDateStr, 'yyyy-MM-dd', new Date());
+    const diff = Math.abs(entryDateObj.getTime() - targetObj.getTime());
+    
+    // Find closest date that's either older than currentDate or closest to target
+    const currentDateObj = parse(currentDate, 'yyyy-MM-dd', new Date());
+    if (diff < smallestDiff) {
       smallestDiff = diff;
       closestDate = date;
+    }
+  }
+  
+  // If still no date found, just use the next entry in allDates
+  if (!closestDate && allDates.length > 1) {
+    const currentIndex = allDates.indexOf(currentDate);
+    if (currentIndex === 0 && allDates.length > 1) {
+      closestDate = allDates[1];
+    } else if (currentIndex > 0) {
+      closestDate = allDates[currentIndex - 1];
     }
   }
   

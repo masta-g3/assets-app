@@ -50,8 +50,8 @@
       />
       
       <div class="date-markers">
-        <span class="marker start">{formatDateForDisplay(dates[dates.length - 1])}</span>
-        <span class="marker end">{formatDateForDisplay(dates[0])}</span>
+        <span class="marker start">{formatDateForDisplay(dates[0])}</span>
+        <span class="marker end">{formatDateForDisplay(dates[dates.length - 1])}</span>
       </div>
     </div>
   {:else}

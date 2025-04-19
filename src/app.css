@@ -1,45 +1,47 @@
 /* Import fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=EB+Garamond:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=EB+Garamond:wght@400;500;600&family=Work+Sans:wght@300;400;500&display=swap');
 
 :root {
-  /* Color variables from spec */
-  --color-deep-brown: #6B4F4F;
-  --color-stone-gray: #A0A0A0;
-  --color-green: #5F7464;
-  --color-sandstone: #C0A183;
-  --color-sky-blue: #A7C5E8;
-  --color-ochre: #D48C3F;
-  --color-parchment: #F4F1EA;
-  --color-slate: #3C3C3C;
+  /* Color variables with Ghibli-inspired palette */
+  --color-deep-brown: #6D5A50;     /* Earthy, muted brown (like forest floor in Totoro) */
+  --color-stone-gray: #9B9B93;     /* Muted sage gray (like Howl's environment) */
+  --color-green: #657259;          /* Muted forest green (like Ghibli landscapes) */
+  --color-sandstone: #C2B099;      /* Soft, warm cream (like Spirited Away backgrounds) */
+  --color-sky-blue: #A3C5E6;       /* Soft sky blue (like Castle in the Sky) */
+  --color-ochre: #D99E68;          /* Warm, dusty orange (like Kiki's sunset) */
+  --color-parchment: #F6F2EA;      /* Soft, warm paper tone (like hand-drawn backgrounds) */
+  --color-slate: #3A3D40;          /* Deep but gentle slate (like ink drawings) */
+  --color-moss: #8A9A5B;           /* Soft moss green (like forest scenes) */
+  --color-dusty-rose: #C49A9A;     /* Gentle rose (like Spirited Away accents) */
   
   /* Accent colors */
-  --color-positive: #4CAF50;
-  --color-negative: #F44336;
+  --color-positive: #5B8C5A;       /* Softer green for positive values */
+  --color-negative: #C25B5B;       /* Softer red for negative values */
   
-  /* Spacing */
-  --space-xs: 0.25rem;
-  --space-sm: 0.5rem;
-  --space-md: 1rem;
-  --space-lg: 1.5rem;
-  --space-xl: 2rem;
+  /* Spacing (slightly more generous for zen feel) */
+  --space-xs: 0.35rem;
+  --space-sm: 0.65rem;
+  --space-md: 1.25rem;
+  --space-lg: 1.75rem;
+  --space-xl: 2.5rem;
   
-  /* Border radius */
-  --border-radius-sm: 4px;
-  --border-radius-md: 8px;
-  --border-radius-lg: 12px;
+  /* Border radius (slightly softer curves) */
+  --border-radius-sm: 5px;
+  --border-radius-md: 10px;
+  --border-radius-lg: 15px;
   
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  /* Shadows (gentler, more diffused) */
+  --shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 8px 25px rgba(0, 0, 0, 0.07);
   
   /* Typography */
-  --font-family-sans: 'Inter', system-ui, sans-serif;
+  --font-family-sans: 'Work Sans', 'Inter', system-ui, sans-serif;
   --font-family-serif: 'EB Garamond', serif;
   
   /* Base styles */
   font-family: var(--font-family-sans);
-  line-height: 1.5;
+  line-height: 1.6;
   font-weight: 400;
   font-size: 16px;
   
@@ -64,6 +66,24 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background-image: 
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"),
+    linear-gradient(to bottom, var(--color-parchment), var(--color-parchment));
+  position: relative;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    radial-gradient(circle at 10% 10%, rgba(101, 114, 89, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 90% 90%, rgba(163, 197, 230, 0.03) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: -1;
 }
 
 /* Container */
@@ -113,7 +133,7 @@ a:hover {
 /* Buttons */
 button {
   font-family: var(--font-family-sans);
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 500;
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--border-radius-md);
@@ -121,27 +141,53 @@ button {
   background-color: var(--color-deep-brown);
   color: white;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  letter-spacing: 0.03em;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+button::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0) 100%);
+  transition: all 0.6s ease;
 }
 
 button:hover {
   background-color: var(--color-parchment);
   color: var(--color-deep-brown);
+  transform: translateY(-1px);
+}
+
+button:hover::after {
+  left: 100%;
 }
 
 button:focus {
-  outline: 2px solid var(--color-deep-brown);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-parchment), 0 0 0 4px var(--color-deep-brown);
 }
 
 button.secondary {
-  background-color: var(--color-parchment);
+  background-color: rgba(255, 255, 255, 0.7);
   color: var(--color-deep-brown);
+  border: 1px solid rgba(109, 90, 80, 0.3);
 }
 
 button.secondary:hover {
-  background-color: var(--color-stone-gray);
-  color: white;
+  background-color: rgba(155, 155, 147, 0.2);
+  color: var(--color-deep-brown);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Form elements */
@@ -163,11 +209,35 @@ input:focus, select:focus, textarea:focus {
 
 /* Cards */
 .card {
-  background-color: white;
+  background-color: rgba(255, 255, 255, 0.9);
   border-radius: var(--border-radius-md);
   box-shadow: var(--shadow-sm);
-  padding: var(--space-md);
+  padding: var(--space-lg);
   margin-bottom: var(--space-md);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, 
+    var(--color-moss) 0%, 
+    var(--color-sandstone) 35%, 
+    var(--color-sky-blue) 70%, 
+    var(--color-dusty-rose) 100%);
+  opacity: 0.5;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 /* Grid */
