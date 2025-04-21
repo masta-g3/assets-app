@@ -306,6 +306,11 @@ export const groupedAllocationData = derived(
     const grouped: Record<string, number> = {};
 
     for (const entry of currentEntries) {
+      // Only include positive amounts in the allocation chart
+      if (entry.amount <= 0) {
+          continue;
+      }
+      
       let groupName = entry.platform;
       if (allocationChartGroupBy === 'tag') {
         groupName = platformTags[entry.platform] || entry.platform;
