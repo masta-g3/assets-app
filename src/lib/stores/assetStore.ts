@@ -1,6 +1,6 @@
 import { writable, derived } from 'svelte/store';
 import type { AssetEntry } from '../db';
-import { assetDb } from '../db';
+import { assetDb, platformTagDb } from '../db';
 import { 
   sortByDate, 
   groupByDate, 
@@ -8,6 +8,7 @@ import {
   calculateMonthlyRates,
   getHistoricalEntries,
   getYearStartEntries,
+  getPlatformColor,
   type AssetSummary
 } from '../utils/calculations';
 
@@ -26,6 +27,8 @@ interface AssetState {
   comparisonPeriod: 'MoM' | 'YTD' | 'YoY';
   dataView: 'percentage' | 'absolute';
   monthlyRateData: MonthlyRateData;
+  platformTags: Record<string, string>;
+  allocationChartGroupBy: 'platform' | 'tag';
 }
 
 // Define structure for the rate data
@@ -59,7 +62,9 @@ const createAssetStore = () => {
     },
     comparisonPeriod: 'MoM',
     dataView: 'percentage',
-    monthlyRateData: { dates: [], expectedRates: [], realizedRates: [] }
+    monthlyRateData: { dates: [], expectedRates: [], realizedRates: [] },
+    platformTags: {},
+    allocationChartGroupBy: 'platform',
   };
   
   const { subscribe, set, update } = writable<AssetState>(initialState);
@@ -69,8 +74,11 @@ const createAssetStore = () => {
     update(state => ({ ...state, loading: true }));
     
     try {
-      // Get all assets from DB
-      const assets = await assetDb.getAll();
+      const [assets, platformTags] = await Promise.all([
+        assetDb.getAll(),
+        platformTagDb.getAll()
+      ]);
+      
       const sortedAssets = sortByDate(assets);
       
       // Group by date for easier access
@@ -111,7 +119,8 @@ const createAssetStore = () => {
         momEntries,
         yoyEntries,
         summary,
-        monthlyRateData
+        monthlyRateData,
+        platformTags,
       }));
     } catch (error) {
       console.error('Failed to load assets:', error);
@@ -225,14 +234,41 @@ const createAssetStore = () => {
   
   // Clear all data
   const clearAllData = async () => {
+    update(state => ({ ...state, loading: true }));
     try {
-      await assetDb.clear();
+      await Promise.all([
+        assetDb.clear(),
+        platformTagDb.clear()
+      ]);
+      set(initialState); 
       await loadAssets();
-      return true;
     } catch (error) {
       console.error('Failed to clear data:', error);
-      return false;
+      update(state => ({ ...state, loading: false }));
     }
+  };
+  
+  // Set a platform tag
+  const setTag = async (platform: string, tag: string) => {
+    try {
+      await platformTagDb.set(platform, tag);
+      update(state => {
+        const newTags = { ...state.platformTags };
+        if (tag) {
+          newTags[platform] = tag;
+        } else {
+          delete newTags[platform];
+        }
+        return { ...state, platformTags: newTags };
+      });
+    } catch (error) {
+      console.error('Failed to set platform tag:', error);
+    }
+  };
+
+  // Set allocation chart grouping
+  const setAllocationChartGroupBy = (groupBy: 'platform' | 'tag') => {
+    update(state => ({ ...state, allocationChartGroupBy: groupBy }));
   };
   
   return {
@@ -244,9 +280,58 @@ const createAssetStore = () => {
     addEntry,
     updateEntry,
     deleteEntry,
-    clearAllData
+    clearAllData,
+    setTag,
+    setAllocationChartGroupBy,
   };
 };
 
 // Export the store
 export const assetStore = createAssetStore();
+
+// Derived store for unique platform names across all assets
+export const uniquePlatforms = derived(
+  assetStore,
+  ($assetStore) => {
+    const platforms = new Set($assetStore.assets.map(a => a.platform));
+    return Array.from(platforms).sort();
+  }
+);
+
+// Derived store for Allocation Chart data, grouped by platform or tag
+export const groupedAllocationData = derived(
+  [assetStore],
+  ([$assetStore]) => {
+    const { currentEntries, platformTags, allocationChartGroupBy } = $assetStore;
+    const grouped: Record<string, number> = {};
+
+    for (const entry of currentEntries) {
+      let groupName = entry.platform;
+      if (allocationChartGroupBy === 'tag') {
+        groupName = platformTags[entry.platform] || entry.platform;
+      }
+
+      grouped[groupName] = (grouped[groupName] || 0) + entry.amount;
+    }
+
+    const sortedEntries = Object.entries(grouped).sort(([, a], [, b]) => b - a);
+
+    const labels = sortedEntries.map(([name]) => name);
+    const data = sortedEntries.map(([, amount]) => amount);
+    
+    const colors = sortedEntries.map(([name, _]) => {
+        if (allocationChartGroupBy === 'tag') {
+            const originalPlatform = Object.entries(platformTags).find(([, tag]) => tag === name)?.[0] || name;
+            return getPlatformColor(originalPlatform);
+        } else {
+            return getPlatformColor(name);
+        }
+    });
+
+    return {
+      labels,
+      data,
+      colors,
+    };
+  }
+);

@@ -20,6 +20,10 @@ interface HomesteadDB extends DBSchema {
       'by-platform': string;
     };
   };
+  platformTags: {
+    key: string; // platform name
+    value: { platform: string; tag: string };
+  };
 }
 
 // List of allowed platforms
@@ -39,20 +43,27 @@ export const ALLOWED_PLATFORMS = [
 
 // DB name and version
 const DB_NAME = 'homestead-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 // Open the database
 export const dbPromise = openDB<HomesteadDB>(DB_NAME, DB_VERSION, {
-  upgrade(db) {
-    // Create the assets store
-    const assetStore = db.createObjectStore('assets', { 
-      keyPath: 'id', 
-      autoIncrement: true 
-    });
+  upgrade(db, oldVersion) {
+    if (oldVersion < 1) {
+      // Create the assets store
+      const assetStore = db.createObjectStore('assets', { 
+        keyPath: 'id', 
+        autoIncrement: true 
+      });
+      
+      // Create indexes for querying
+      assetStore.createIndex('by-date', 'date');
+      assetStore.createIndex('by-platform', 'platform');
+    }
     
-    // Create indexes for querying
-    assetStore.createIndex('by-date', 'date');
-    assetStore.createIndex('by-platform', 'platform');
+    if (oldVersion < 2) {
+        // Create the platformTags store
+        db.createObjectStore('platformTags', { keyPath: 'platform' });
+    }
   },
 });
 
@@ -123,4 +134,35 @@ export const assetDb = {
   async count() {
     return (await dbPromise).count('assets');
   }
+};
+
+// Platform Tag database operations
+export const platformTagDb = {
+  async set(platform: string, tag: string) {
+    if (!tag) {
+      return this.delete(platform);
+    }
+    return (await dbPromise).put('platformTags', { platform, tag });
+  },
+
+  async delete(platform: string) {
+    return (await dbPromise).delete('platformTags', platform);
+  },
+
+  async get(platform: string): Promise<string | undefined> {
+    const entry = await (await dbPromise).get('platformTags', platform);
+    return entry?.tag;
+  },
+
+  async getAll(): Promise<Record<string, string>> {
+    const allTags = await (await dbPromise).getAll('platformTags');
+    return allTags.reduce((acc, { platform, tag }) => {
+      acc[platform] = tag;
+      return acc;
+    }, {} as Record<string, string>);
+  },
+
+  async clear() {
+    return (await dbPromise).clear('platformTags');
+  },
 };

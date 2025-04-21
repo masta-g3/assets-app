@@ -39,15 +39,26 @@
   --font-family-sans: 'Work Sans', 'Inter', system-ui, sans-serif;
   --font-family-serif: 'EB Garamond', serif;
   
+  /* Light Mode Theme Variables (ensure consistency with modal usage) */
+  --background-color: var(--color-parchment);
+  --text-color: var(--color-slate);
+  --secondary-text-color: var(--color-stone-gray);
+  --border-color: #d1cbbc; /* Slightly darker parchment for subtle borders */
+  --input-background: #ffffff;
+  --hover-background-color: #ede8de; /* Slightly darker parchment for hover */
+  --primary-color: var(--color-deep-brown);
+  --primary-hover-color: #857065; /* Darker brown */
+  --card-background: #ffffff;
+  
   /* Base styles */
   font-family: var(--font-family-sans);
   line-height: 1.6;
   font-weight: 400;
   font-size: 16px;
   
-  /* Colors */
-  color: var(--color-slate);
-  background-color: var(--color-parchment);
+  /* Colors (using the theme variables now) */
+  color: var(--text-color);
+  background-color: var(--background-color);
   
   /* Text rendering */
   text-rendering: optimizeLegibility;

@@ -1,11 +1,13 @@
 <script lang="ts">
   import { importCSV, exportCSV, downloadCSV } from '../utils/csv';
   import { assetStore } from '../stores/assetStore';
+  import PlatformTagEditor from './PlatformTagEditor.svelte';
   
   let fileInput: HTMLInputElement;
   let importing = false;
   let exporting = false;
   let message = { text: '', type: 'info' };
+  let tagEditorModal: PlatformTagEditor;
   
   // Handle CSV file selection
   async function handleFileSelect(event: Event) {
@@ -96,17 +98,11 @@
       message = { text: '', type: 'info' };
       
       try {
-        if (await assetStore.clearAllData()) {
-          message = {
-            text: 'All data has been cleared successfully.',
-            type: 'success'
-          };
-        } else {
-          message = {
-            text: 'Failed to clear data.',
-            type: 'error'
-          };
-        }
+        await assetStore.clearAllData();
+        message = {
+          text: 'All data has been cleared successfully.',
+          type: 'success'
+        };
       } catch (error) {
         message = {
           text: `Error clearing data: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -122,7 +118,13 @@
       fileInput.click();
     }
   }
+  
+  function openTagEditor() {
+    tagEditorModal?.open();
+  }
 </script>
+
+<PlatformTagEditor bind:this={tagEditorModal} />
 
 <div class="import-export card">
   <h3>Import/Export Data</h3>
@@ -161,6 +163,16 @@
         {:else}
           Export CSV
         {/if}
+      </button>
+    </div>
+    
+    <div class="action-group">
+      <h4>Edit Platform Tags</h4>
+      <p class="description">
+        Assign custom tags to platforms for alternative grouping in charts.
+      </p>
+      <button on:click={openTagEditor}>
+        Edit Tags
       </button>
     </div>
     
