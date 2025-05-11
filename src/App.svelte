@@ -73,7 +73,7 @@
                 />
               </div>
               <div class="column">
-                <AllocationChart entries={$assetStore.currentEntries} />
+                <AllocationChart />
               </div>
             </div>
             
@@ -84,34 +84,7 @@
           </div>
         {:else if activeTab === 'performance'}
           <div class="performance-tab">
-            <div class="period-selector">
-              <span>Comparison Period:</span>
-              <div class="button-group">
-                <button 
-                  class="period-btn {$assetStore.comparisonPeriod === 'MoM' ? 'active' : ''}" 
-                  on:click={() => assetStore.setComparisonPeriod('MoM')}
-                >
-                  Month-over-Month
-                </button>
-                <button 
-                  class="period-btn {$assetStore.comparisonPeriod === 'YTD' ? 'active' : ''}" 
-                  on:click={() => assetStore.setComparisonPeriod('YTD')}
-                >
-                  Year-to-Date
-                </button>
-                <button 
-                  class="period-btn {$assetStore.comparisonPeriod === 'YoY' ? 'active' : ''}" 
-                  on:click={() => assetStore.setComparisonPeriod('YoY')}
-                >
-                  Year-over-Year
-                </button>
-              </div>
-            </div>
-            
-            <PlatformPerformance 
-              summary={$assetStore.summary} 
-              dataView={$assetStore.dataView} 
-            />
+            <PlatformPerformance />
           </div>
         {:else if activeTab === 'data'}
           <div class="data-tab">

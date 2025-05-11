@@ -23,12 +23,17 @@ interface AssetState {
   previousEntries: AssetEntry[];
   momEntries: AssetEntry[];
   yoyEntries: AssetEntry[];
+  yearStartEntries: AssetEntry[];
   summary: AssetSummary;
   comparisonPeriod: 'MoM' | 'YTD' | 'YoY';
   dataView: 'percentage' | 'absolute';
   monthlyRateData: MonthlyRateData;
   platformTags: Record<string, string>;
   allocationChartGroupBy: 'platform' | 'tag';
+  platformPerformanceView: 'bar' | 'timeseries';
+  timeSeriesPerformanceType: 'interval' | 'cumulative';
+  timeSeriesDateRange: { start: string | null; end: string | null };
+  timeSeriesShowTotal: boolean;
 }
 
 // Define structure for the rate data
@@ -36,6 +41,22 @@ export interface MonthlyRateData {
   dates: string[];
   expectedRates: number[];
   realizedRates: number[];
+}
+
+// Types for derived data
+export interface PlatformPerformanceData {
+  // Structure for the existing bar chart, likely remains similar
+  // but driven by the main summary object.
+  // This interface might not be explicitly needed if 'summary' prop is used directly.
+}
+
+export interface PlatformPerformanceTimeSeriesPoint {
+  date: string; // yyyy-MM-dd
+  value: number; // The calculated performance metric
+}
+
+export interface PlatformPerformanceTimeSeries {
+  [platform: string]: PlatformPerformanceTimeSeriesPoint[];
 }
 
 // Create the store with initial state
@@ -50,6 +71,7 @@ const createAssetStore = () => {
     previousEntries: [],
     momEntries: [],
     yoyEntries: [],
+    yearStartEntries: [],
     summary: {
       totalValue: 0,
       totalPreviousValue: 0,
@@ -65,9 +87,27 @@ const createAssetStore = () => {
     monthlyRateData: { dates: [], expectedRates: [], realizedRates: [] },
     platformTags: {},
     allocationChartGroupBy: 'platform',
+    platformPerformanceView: 'bar',
+    timeSeriesPerformanceType: 'interval',
+    timeSeriesDateRange: { start: null, end: null },
+    timeSeriesShowTotal: false,
   };
   
   const { subscribe, set, update } = writable<AssetState>(initialState);
+  
+  // Helper to determine comparison entries based on period for a GIVEN DATE
+  const getComparisonEntries = (
+    dateForComparison: string,
+    period: 'MoM' | 'YTD' | 'YoY',
+    allDates: string[],
+    entriesByDate: Map<string, AssetEntry[]>
+  ): AssetEntry[] => {
+    if (period === 'YTD') {
+      return getYearStartEntries(dateForComparison, allDates, entriesByDate);
+    }
+    // For MoM and YoY, getHistoricalEntries handles them
+    return getHistoricalEntries(dateForComparison, period, allDates, entriesByDate);
+  };
   
   // Load assets from database
   const loadAssets = async () => {
@@ -93,12 +133,13 @@ const createAssetStore = () => {
       // Get entries for selected date
       const currentEntries = entriesByDate.get(selectedDate) || [];
       
-      // Get previous date entries based on default comparison period (MoM)
-      const previousEntries = getHistoricalEntries(selectedDate, 'MoM', allDates, entriesByDate);
-      
-      // Get month-over-month and year-over-year entries
+      // Determine various comparison entries for the selectedDate
       const momEntries = getHistoricalEntries(selectedDate, 'MoM', allDates, entriesByDate);
       const yoyEntries = getHistoricalEntries(selectedDate, 'YoY', allDates, entriesByDate);
+      const yearStartEntries = getYearStartEntries(selectedDate, allDates, entriesByDate);
+
+      // previousEntries for summary is based on the initial comparisonPeriod
+      const previousEntries = getComparisonEntries(selectedDate, initialState.comparisonPeriod, allDates, entriesByDate);
       
       // Calculate summary statistics
       const summary = calculateSummary(currentEntries, previousEntries);
@@ -118,6 +159,7 @@ const createAssetStore = () => {
         previousEntries,
         momEntries,
         yoyEntries,
+        yearStartEntries,
         summary,
         monthlyRateData,
         platformTags,
@@ -136,15 +178,15 @@ const createAssetStore = () => {
       }
       
       const currentEntries = state.entriesByDate.get(date) || [];
-      let previousEntries: AssetEntry[] = [];
-      if (state.comparisonPeriod === 'MoM') {
-        previousEntries = getHistoricalEntries(date, 'MoM', state.allDates, state.entriesByDate);
-      } else if (state.comparisonPeriod === 'YoY') {
-        previousEntries = getHistoricalEntries(date, 'YoY', state.allDates, state.entriesByDate);
-      } else {
-        previousEntries = getYearStartEntries(date, state.allDates, state.entriesByDate);
-      }
+      
+      // Update all date-specific comparison entries
+      const momEntries = getHistoricalEntries(date, 'MoM', state.allDates, state.entriesByDate);
+      const yoyEntries = getHistoricalEntries(date, 'YoY', state.allDates, state.entriesByDate);
+      const yearStartEntries = getYearStartEntries(date, state.allDates, state.entriesByDate);
 
+      // previousEntries for summary is based on the current state.comparisonPeriod
+      const previousEntries = getComparisonEntries(date, state.comparisonPeriod, state.allDates, state.entriesByDate);
+      
       const summary = calculateSummary(currentEntries, previousEntries);
       
       // Calculate monthly rates
@@ -155,8 +197,9 @@ const createAssetStore = () => {
         selectedDate: date,
         currentEntries,
         previousEntries,
-        momEntries: getHistoricalEntries(date, 'MoM', state.allDates, state.entriesByDate),
-        yoyEntries: getHistoricalEntries(date, 'YoY', state.allDates, state.entriesByDate),
+        momEntries,
+        yoyEntries,
+        yearStartEntries,
         summary,
         monthlyRateData
       };
@@ -166,27 +209,16 @@ const createAssetStore = () => {
   // Set comparison period
   const setComparisonPeriod = (period: 'MoM' | 'YTD' | 'YoY') => {
     update(state => {
-      let previousEntries: AssetEntry[] = [];
-
-      if (period === 'MoM') {
-        previousEntries = getHistoricalEntries(state.selectedDate, 'MoM', state.allDates, state.entriesByDate);
-      } else if (period === 'YoY') {
-        previousEntries = getHistoricalEntries(state.selectedDate, 'YoY', state.allDates, state.entriesByDate);
-      } else {
-        previousEntries = getYearStartEntries(state.selectedDate, state.allDates, state.entriesByDate);
-      }
-
+      // Only need to recalculate previousEntries and summary, as currentEntries and other specific
+      // historical entries (mom, yoy, yearStart) depend on selectedDate, not the comparisonPeriod for the summary.
+      const previousEntries = getComparisonEntries(state.selectedDate, period, state.allDates, state.entriesByDate);
       const summary = calculateSummary(state.currentEntries, previousEntries);
-
-      // Calculate monthly rates
-      const monthlyRateData = calculateMonthlyRates(state.allDates, state.entriesByDate);
-
+      
       return {
         ...state,
         comparisonPeriod: period,
         previousEntries,
-        summary,
-        monthlyRateData
+        summary
       };
     });
   };
@@ -271,6 +303,32 @@ const createAssetStore = () => {
     update(state => ({ ...state, allocationChartGroupBy: groupBy }));
   };
   
+  // Set platform performance chart view
+  const setPlatformPerformanceView = (view: 'bar' | 'timeseries') => {
+    update(state => ({
+      ...state,
+      platformPerformanceView: view,
+    }));
+  };
+
+  const setTimeSeriesPerformanceType = (type: 'interval' | 'cumulative') => {
+    update(state => ({ ...state, timeSeriesPerformanceType: type }));
+  };
+
+  const setTimeSeriesDateRange = (range: { start: string | null; end: string | null }) => {
+    // Basic validation: if both defined, start should be <= end.
+    // More advanced validation (e.g., valid date strings) could be added.
+    if (range.start && range.end && range.start > range.end) {
+      // Option: swap them, or alert, or ignore. For now, accept.
+      // console.warn('Time series date range: start date is after end date.');
+    }
+    update(state => ({ ...state, timeSeriesDateRange: range }));
+  };
+
+  const setTimeSeriesShowTotal = (show: boolean) => {
+    update(state => ({ ...state, timeSeriesShowTotal: show }));
+  };
+  
   return {
     subscribe,
     loadAssets,
@@ -283,6 +341,10 @@ const createAssetStore = () => {
     clearAllData,
     setTag,
     setAllocationChartGroupBy,
+    setPlatformPerformanceView,
+    setTimeSeriesPerformanceType,
+    setTimeSeriesDateRange,
+    setTimeSeriesShowTotal,
   };
 };
 
@@ -338,5 +400,139 @@ export const groupedAllocationData = derived(
       data,
       colors,
     };
+  }
+);
+
+// Derived store for Platform Performance Time Series Data
+export const platformPerformanceTimeSeriesData = derived(
+  [assetStore],
+  ([$assetStore]): PlatformPerformanceTimeSeries => {
+    const {
+      allDates, // Sorted newest to oldest
+      entriesByDate,
+      platformPerformanceView,
+      timeSeriesPerformanceType,
+      timeSeriesDateRange,
+      assets, // Full asset list to get all unique platforms
+      timeSeriesShowTotal // ADDED for conditional logic
+    } = $assetStore;
+
+    if (platformPerformanceView === 'bar' || allDates.length === 0) {
+      return {}; // Return empty if not in timeseries view or no data
+    }
+
+    // 1. Determine effective date range for the time series
+    let filteredDatesChronological = [...allDates].sort((a, b) => a.localeCompare(b)); // Oldest to newest
+
+    if (timeSeriesDateRange.start) {
+      filteredDatesChronological = filteredDatesChronological.filter(d => d >= timeSeriesDateRange.start!);
+    }
+    if (timeSeriesDateRange.end) {
+      filteredDatesChronological = filteredDatesChronological.filter(d => d <= timeSeriesDateRange.end!);
+    }
+
+    if (filteredDatesChronological.length === 0) {
+      return {}; // No data within the selected range
+    }
+
+    const timeSeries: PlatformPerformanceTimeSeries = {};
+
+    if (timeSeriesShowTotal) {
+      // Calculate for "Total Portfolio"
+      timeSeries["Total Portfolio"] = [];
+      const totalPortfolioEntriesChronological: { date: string; totalAmount: number }[] = [];
+
+      filteredDatesChronological.forEach(date => {
+        const dayEntries = entriesByDate.get(date) || [];
+        const totalAmountForDay = dayEntries.reduce((sum, entry) => sum + entry.amount, 0);
+        totalPortfolioEntriesChronological.push({ date, totalAmount: totalAmountForDay });
+      });
+
+      if (totalPortfolioEntriesChronological.length === 0) return {};
+
+      if (timeSeriesPerformanceType === 'interval') {
+        for (let i = 0; i < totalPortfolioEntriesChronological.length; i++) {
+          const currentDay = totalPortfolioEntriesChronological[i];
+          let performanceValue = 0;
+          if (i > 0) {
+            const previousDay = totalPortfolioEntriesChronological[i - 1];
+            if (previousDay.totalAmount > 0) {
+              performanceValue = ((currentDay.totalAmount - previousDay.totalAmount) / previousDay.totalAmount) * 100;
+            } else if (currentDay.totalAmount > 0 && previousDay.totalAmount === 0) {
+              performanceValue = 0; // Or 100, based on desired behavior for growth from zero
+            }
+          } else {
+            performanceValue = 0; // First point in interval series
+          }
+          timeSeries["Total Portfolio"].push({ date: currentDay.date, value: performanceValue });
+        }
+      } else { // Cumulative
+        if (totalPortfolioEntriesChronological.length > 0) {
+          const firstDayTotal = totalPortfolioEntriesChronological[0].totalAmount;
+          totalPortfolioEntriesChronological.forEach(currentDay => {
+            let performanceValue = 0;
+            if (firstDayTotal > 0) {
+              performanceValue = ((currentDay.totalAmount - firstDayTotal) / firstDayTotal) * 100;
+            } else if (currentDay.totalAmount > 0 && firstDayTotal === 0) {
+              performanceValue = (currentDay.totalAmount === firstDayTotal) ? 0 : 100; // Growth from zero
+            }
+            timeSeries["Total Portfolio"].push({ date: currentDay.date, value: performanceValue });
+          });
+        }
+      }
+    } else {
+      // Original per-platform logic
+      const uniquePlatforms = new Set<string>();
+      assets.forEach(asset => uniquePlatforms.add(asset.platform));
+
+      uniquePlatforms.forEach(platform => {
+        timeSeries[platform] = [];
+        let platformEntriesInRange: AssetEntry[] = [];
+
+        filteredDatesChronological.forEach(date => {
+          const dayEntries = entriesByDate.get(date) || [];
+          const platformEntry = dayEntries.find(e => e.platform === platform);
+          if (platformEntry) {
+            platformEntriesInRange.push(platformEntry);
+          }
+        });
+
+        if (platformEntriesInRange.length === 0) return; // No data for this platform in range
+
+        if (timeSeriesPerformanceType === 'interval') {
+          for (let i = 0; i < platformEntriesInRange.length; i++) {
+            const currentEntry = platformEntriesInRange[i];
+            let performanceValue = 0;
+            if (i > 0) {
+              const previousEntry = platformEntriesInRange[i - 1];
+              if (previousEntry.amount > 0) {
+                performanceValue = ((currentEntry.amount - previousEntry.amount) / previousEntry.amount) * 100;
+              } else if (currentEntry.amount > 0 && previousEntry.amount === 0) {
+                performanceValue = 0; 
+              }
+            } else {
+              performanceValue = 0; 
+            }
+            timeSeries[platform].push({ date: currentEntry.date, value: performanceValue });
+          }
+        } else { // Cumulative
+          if (platformEntriesInRange.length > 0) {
+            const firstEntryInSeries = platformEntriesInRange[0];
+            const baselineAmount = firstEntryInSeries.amount;
+
+            platformEntriesInRange.forEach(currentEntry => {
+              let performanceValue = 0;
+              if (baselineAmount > 0) {
+                performanceValue = ((currentEntry.amount - baselineAmount) / baselineAmount) * 100;
+              } else if (currentEntry.amount > 0 && baselineAmount === 0) {
+                performanceValue = (currentEntry.amount === baselineAmount) ? 0 : 100;
+              }
+              timeSeries[platform].push({ date: currentEntry.date, value: performanceValue });
+            });
+          }
+        }
+      });
+    }
+    return timeSeries;
   }
 );

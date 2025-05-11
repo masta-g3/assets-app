@@ -19,6 +19,8 @@
   },
   "dependencies": {
     "chart.js": "^4.4.9",
+    "chartjs-adapter-date-fns": "^3.0.0",
+    "chartjs-plugin-annotation": "^3.1.0",
     "date-fns": "^4.1.0",
     "idb": "^8.0.2",
     "papaparse": "^5.5.2"
