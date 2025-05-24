@@ -5,21 +5,67 @@
   // Components
   import Header from './lib/components/Header.svelte';
   import DateSlider from './lib/components/DateSlider.svelte';
-  import KeyMetrics from './lib/components/KeyMetrics.svelte';
+  import KeyMetrics from './lib/components/EnhancedKeyMetrics.svelte';
   import AllocationTable from './lib/components/AllocationTable.svelte';
   import AllocationChart from './lib/components/AllocationChart.svelte';
   import PortfolioEvolutionChart from './lib/components/PortfolioEvolutionChart.svelte';
   import PlatformPerformance from './lib/components/PlatformPerformance.svelte';
   import ImportExport from './lib/components/ImportExport.svelte';
+  import DataQualityIndicator from './lib/components/DataQualityIndicator.svelte';
+  import WelcomeOnboarding from './lib/components/WelcomeOnboarding.svelte';
+  import EmptyState from './lib/components/EmptyState.svelte';
+  import RiskAnalysisDashboard from './lib/components/analytics/RiskAnalysisDashboard.svelte';
   
   // App state
   let activeTab = 'overview';
+  let showOnboarding = false;
+  let isFirstTimeUser = false;
+  
+  // Check if user is new (no data and hasn't seen onboarding)
+  $: {
+    if (!$assetStore.loading && $assetStore.assets.length === 0) {
+      const hasSeenOnboarding = localStorage.getItem('homestead-onboarding-complete');
+      if (!hasSeenOnboarding) {
+        isFirstTimeUser = true;
+        showOnboarding = true;
+      }
+    }
+  }
   
   // Load data on mount
   onMount(() => {
     assetStore.loadAssets();
   });
+  
+  function handleOnboardingComplete() {
+    localStorage.setItem('homestead-onboarding-complete', 'true');
+    showOnboarding = false;
+    isFirstTimeUser = false;
+  }
+  
+  function startOnboarding() {
+    showOnboarding = true;
+  }
+  
+  function handleAddFirstAsset() {
+    // Trigger the add form in AllocationTable
+    activeTab = 'overview';
+    // We'll need to communicate with AllocationTable to show the add form
+    // For now, just switch to overview tab where they can add an asset
+  }
+  
+  function handleImportData() {
+    activeTab = 'data';
+  }
+  
+  // Check if we have any data to show
+  $: hasData = $assetStore.assets.length > 0;
+  $: hasCurrentData = $assetStore.currentEntries.length > 0;
 </script>
+
+{#if showOnboarding}
+  <WelcomeOnboarding onComplete={handleOnboardingComplete} />
+{/if}
 
 <Header />
 
@@ -30,28 +76,89 @@
         <div class="spinner"></div>
         <p>Loading your data...</p>
       </div>
+    {:else if !hasData}
+      <EmptyState 
+        title="Welcome to Homestead"
+        description="Start tracking your investment portfolio across multiple platforms. See how your money grows with detailed analytics and insights."
+        icon="🏡"
+        onAddEntry={handleAddFirstAsset}
+        onImport={handleImportData}
+        onGetStarted={startOnboarding}
+      />
     {:else}
       <DateSlider 
         dates={$assetStore.allDates} 
         selectedDate={$assetStore.selectedDate} 
       />
       
-      <div class="tabs">
+      <div class="tabs" role="tablist" aria-label="Main navigation">
         <button 
           class="tab-btn {activeTab === 'overview' ? 'active' : ''}" 
+          role="tab"
+          aria-selected={activeTab === 'overview'}
+          aria-controls="overview-panel"
+          tabindex={activeTab === 'overview' ? 0 : -1}
           on:click={() => activeTab = 'overview'}
+          on:keydown={(e) => {
+            if (e.key === 'ArrowRight') {
+              activeTab = 'performance';
+              e.preventDefault();
+            }
+          }}
         >
           Overview
         </button>
         <button 
           class="tab-btn {activeTab === 'performance' ? 'active' : ''}" 
+          role="tab"
+          aria-selected={activeTab === 'performance'}
+          aria-controls="performance-panel"
+          tabindex={activeTab === 'performance' ? 0 : -1}
           on:click={() => activeTab = 'performance'}
+          on:keydown={(e) => {
+            if (e.key === 'ArrowLeft') {
+              activeTab = 'overview';
+              e.preventDefault();
+            } else if (e.key === 'ArrowRight') {
+              activeTab = 'risk';
+              e.preventDefault();
+            }
+          }}
         >
           Performance Analysis
         </button>
         <button 
+          class="tab-btn {activeTab === 'risk' ? 'active' : ''}" 
+          role="tab"
+          aria-selected={activeTab === 'risk'}
+          aria-controls="risk-panel"
+          tabindex={activeTab === 'risk' ? 0 : -1}
+          on:click={() => activeTab = 'risk'}
+          on:keydown={(e) => {
+            if (e.key === 'ArrowLeft') {
+              activeTab = 'performance';
+              e.preventDefault();
+            } else if (e.key === 'ArrowRight') {
+              activeTab = 'data';
+              e.preventDefault();
+            }
+          }}
+        >
+          Risk Analysis
+        </button>
+        <button 
           class="tab-btn {activeTab === 'data' ? 'active' : ''}" 
+          role="tab"
+          aria-selected={activeTab === 'data'}
+          aria-controls="data-panel"
+          tabindex={activeTab === 'data' ? 0 : -1}
           on:click={() => activeTab = 'data'}
+          on:keydown={(e) => {
+            if (e.key === 'ArrowLeft') {
+              activeTab = 'risk';
+              e.preventDefault();
+            }
+          }}
         >
           Data Management
         </button>
@@ -59,35 +166,62 @@
       
       <div class="tab-content">
         {#if activeTab === 'overview'}
-          <div class="overview-tab">
+          <div class="overview-tab" role="tabpanel" id="overview-panel" aria-labelledby="overview-tab">
             <KeyMetrics 
               summary={$assetStore.summary} 
               comparisonPeriod={$assetStore.comparisonPeriod} 
             />
             
-            <div class="columns">
-              <div class="column">
-                <AllocationTable 
-                  entries={$assetStore.currentEntries} 
-                  date={$assetStore.selectedDate} 
-                />
+            {#if hasCurrentData}
+              <div class="columns">
+                <div class="column">
+                  <AllocationTable 
+                    entries={$assetStore.currentEntries} 
+                    date={$assetStore.selectedDate} 
+                  />
+                </div>
+                <div class="column">
+                  <AllocationChart />
+                </div>
               </div>
-              <div class="column">
-                <AllocationChart />
-              </div>
-            </div>
-            
-            <PortfolioEvolutionChart 
-              assets={$assetStore.assets} 
-              selectedDate={$assetStore.selectedDate} 
-            />
+              
+              <PortfolioEvolutionChart 
+                assets={$assetStore.assets} 
+                selectedDate={$assetStore.selectedDate} 
+              />
+            {:else}
+              <EmptyState 
+                title="No data for this date"
+                description="There are no asset entries for {$assetStore.selectedDate}. You can add entries for this date or select a different date."
+                icon="📅"
+                showQuickStart={false}
+                showImportOption={false}
+                onAddEntry={handleAddFirstAsset}
+              />
+            {/if}
           </div>
         {:else if activeTab === 'performance'}
-          <div class="performance-tab">
-            <PlatformPerformance />
+          <div class="performance-tab" role="tabpanel" id="performance-panel" aria-labelledby="performance-tab">
+            {#if hasData && $assetStore.allDates.length >= 2}
+              <PlatformPerformance />
+            {:else}
+              <EmptyState 
+                title="Not enough data for analysis"
+                description="You need at least 2 months of data to see performance analytics. Add more entries to unlock detailed performance insights."
+                icon="📈"
+                showQuickStart={false}
+                showImportOption={false}
+                onAddEntry={handleAddFirstAsset}
+              />
+            {/if}
+          </div>
+        {:else if activeTab === 'risk'}
+          <div class="risk-tab" role="tabpanel" id="risk-panel" aria-labelledby="risk-tab">
+            <RiskAnalysisDashboard assets={$assetStore.assets} />
           </div>
         {:else if activeTab === 'data'}
-          <div class="data-tab">
+          <div class="data-tab" role="tabpanel" id="data-panel" aria-labelledby="data-tab">
+            <DataQualityIndicator entries={$assetStore.assets} />
             <ImportExport />
           </div>
         {/if}
@@ -181,48 +315,6 @@
     margin-bottom: var(--space-md);
   }
   
-  .period-selector {
-    display: flex;
-    align-items: center;
-    margin-bottom: var(--space-md);
-    background-color: white;
-    padding: var(--space-md);
-    border-radius: var(--border-radius-md);
-    box-shadow: var(--shadow-sm);
-  }
-  
-  .period-selector span {
-    margin-right: var(--space-md);
-    font-weight: 500;
-  }
-  
-  .button-group {
-    display: flex;
-    gap: 2px;
-  }
-  
-  .period-btn {
-    padding: var(--space-xs) var(--space-sm);
-    background-color: transparent;
-    border: 1px solid var(--color-stone-gray);
-    color: var(--color-slate);
-    font-size: 0.9rem;
-  }
-  
-  .period-btn:first-child {
-    border-radius: var(--border-radius-sm) 0 0 var(--border-radius-sm);
-  }
-  
-  .period-btn:last-child {
-    border-radius: 0 var(--border-radius-sm) var(--border-radius-sm) 0;
-  }
-  
-  .period-btn.active {
-    background-color: var(--color-deep-brown);
-    color: white;
-    border-color: var(--color-deep-brown);
-  }
-  
   footer {
     background-color: rgba(255, 255, 255, 0.7);
     border-top: 1px solid rgba(0, 0, 0, 0.03);
@@ -268,24 +360,6 @@
   @media (max-width: 768px) {
     .columns {
       grid-template-columns: 1fr;
-    }
-    
-    .period-selector {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-    
-    .period-selector span {
-      margin-bottom: var(--space-sm);
-    }
-    
-    .button-group {
-      width: 100%;
-    }
-    
-    .period-btn {
-      flex: 1;
-      text-align: center;
     }
     
     footer .container {

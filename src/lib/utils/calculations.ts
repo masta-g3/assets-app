@@ -101,7 +101,12 @@ export const getHistoricalEntries = (
   allDates: string[],
   entriesByDate: Map<string, AssetEntry[]>
 ): AssetEntry[] => {
+  // Return empty array if no current date or no dates available
+  if (!currentDate || allDates.length === 0) return [];
+  
   const dateObj = parse(currentDate, 'yyyy-MM-dd', new Date());
+  if (isNaN(dateObj.getTime())) return []; // Invalid date
+  
   let targetDate: Date;
   
   if (period === 'MoM') {
@@ -132,6 +137,10 @@ export const getHistoricalEntries = (
     
     const entryDateObj = parse(date, 'yyyy-MM-dd', new Date());
     const targetObj = parse(targetDateStr, 'yyyy-MM-dd', new Date());
+    
+    // Skip if invalid dates
+    if (isNaN(entryDateObj.getTime()) || isNaN(targetObj.getTime())) continue;
+    
     const diff = Math.abs(entryDateObj.getTime() - targetObj.getTime());
     
     // Find closest date that's either older than currentDate or closest to target
@@ -292,7 +301,10 @@ export const calculateMonthlyRates = (
   });
 
   // Format dates for chart labels
-  const formattedDates = dates.map(d => format(parse(d, 'yyyy-MM-dd', new Date()), 'MMM yyyy'));
+  const formattedDates = dates.map(d => {
+    const dateObj = parse(d, 'yyyy-MM-dd', new Date());
+    return isNaN(dateObj.getTime()) ? d : format(dateObj, 'MMM yyyy');
+  });
 
   return { dates: formattedDates, expectedRates, realizedRates };
 };
@@ -391,9 +403,11 @@ export const getYearStartEntries = (
   allDates: string[],
   entriesByDate: Map<string, AssetEntry[]>
 ): AssetEntry[] => {
-  if (!currentDate) return [];
+  if (!currentDate || allDates.length === 0) return [];
 
   const current = parse(currentDate, 'yyyy-MM-dd', new Date());
+  if (isNaN(current.getTime())) return []; // Invalid date
+  
   const currentYear = current.getFullYear();
 
   // Find earliest entry in same year (start‑of‑year snapshot)
@@ -402,6 +416,7 @@ export const getYearStartEntries = (
   for (let i = currentIndex; i < allDates.length; i++) {
     const dateStr = allDates[i];
     const dateObj = parse(dateStr, 'yyyy-MM-dd', new Date());
+    if (isNaN(dateObj.getTime())) continue; // Skip invalid dates
     if (dateObj.getFullYear() !== currentYear) break; // crossed into previous year
     candidateDate = dateStr; // keep updating so last assignment is earliest in year
   }

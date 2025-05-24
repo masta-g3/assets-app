@@ -2,25 +2,24 @@
   import { onMount, onDestroy } from 'svelte';
   import Chart from 'chart.js/auto';
   import 'chartjs-adapter-date-fns'; // Import the date adapter
+  import annotationPlugin from 'chartjs-plugin-annotation';
   import { 
     assetStore, 
     platformPerformanceTimeSeriesData 
   } from '../stores/assetStore'; // Updated imports
+
+  // Register the annotation plugin
+  Chart.register(annotationPlugin);
   import type { AssetEntry } from '../db';
   import { 
-    calculateSummary, 
     formatCurrency, 
     formatPercentage, 
-    getPlatformColor,
-    getHistoricalEntries,
-    getYearStartEntries
+    getPlatformColor
   } from '../utils/calculations';
-  import type { AssetSummary } from '../utils/calculations';
+  import type { EnhancedAssetSummary } from '../analytics/types/metrics';
   import { parse as parseDate, format as formatDateFns } from 'date-fns'; // Renamed to avoid conflict if any
   import type { ChartOptions, TitleOptions, TooltipItem } from 'chart.js'; // Refined imports
   import type { AnnotationPluginOptions, LineAnnotationOptions, LabelAnnotationOptions } from 'chartjs-plugin-annotation';
-
-  // export let summary: AssetSummary; // REMOVED summary prop
 
   // --- Component State ---
   // Bar Chart specific
@@ -28,9 +27,6 @@
   let barChart: Chart<'bar'> | null = null; // More specific chart type
   let barChartDataView: 'percentage' | 'absolute' = 'percentage'; 
   $: showPercentageInBarChart = barChartDataView === 'percentage';
-  let localBarChartSummary: AssetSummary | null = null;
-  let barChartComparisonPeriod: 'MoM' | 'YTD' | 'YoY' = 'MoM';
-  let isLoadingBarChartData: boolean = true;
 
   // Time Series specific
   let timeSeriesChartContainer: HTMLCanvasElement;
@@ -38,15 +34,125 @@
   let localTsStartDate: string | null = null;
   let localTsEndDate: string | null = null;
 
-  // Derived from assetStore
+  // Derived from assetStore - using enhanced summary directly
   let currentView: 'bar' | 'timeseries';
   let globalSelectedDate: string; // Main date from app slider
   let allDatesFromStore: string[] = [];
   let entriesByDateFromStore: Map<string, AssetEntry[]> = new Map();
+  let enhancedSummary: EnhancedAssetSummary; // Use enhanced summary directly
   let tsPerformanceType: 'interval' | 'cumulative';
   let tsDateRangeFromStore: { start: string | null; end: string | null };
   let timeSeriesDataForChart: import('../stores/assetStore').PlatformPerformanceTimeSeries = {};
   let tsShowTotalFromStore: boolean = false; // ADDED for Show Total state
+
+  // Check if we have enhanced analytics data
+  $: hasEnhancedData = enhancedSummary?.portfolioMetrics && enhancedSummary?.cashFlowMetrics;
+  $: hasContributionData = (enhancedSummary?.cashFlowMetrics?.contributionsByPeriod?.length ?? 0) > 0;
+
+  // Calculate effective date range for display
+  $: effectiveStartDate = localTsStartDate || (allDatesFromStore.length > 0 ? allDatesFromStore[allDatesFromStore.length - 1] : ''); // Oldest date
+  $: effectiveEndDate = localTsEndDate || (allDatesFromStore.length > 0 ? allDatesFromStore[0] : ''); // Newest date
+  $: isDateRangeFiltered = !!(localTsStartDate || localTsEndDate);
+
+  // Show actual date range in inputs - when no custom dates, show the data range
+  $: displayStartDate = localTsStartDate || (allDatesFromStore.length > 0 ? allDatesFromStore[allDatesFromStore.length - 1] : '');
+  $: displayEndDate = localTsEndDate || (allDatesFromStore.length > 0 ? allDatesFromStore[0] : '');
+
+  // Filter data for Summary view based on date range (same logic as time series)
+  $: filteredSummaryData = (() => {
+    if (!isDateRangeFiltered || !enhancedSummary) {
+      return enhancedSummary;
+    }
+
+    // Apply date filtering to create a new summary based on filtered date range
+    const filteredDatesChronological = [...allDatesFromStore].sort((a, b) => a.localeCompare(b));
+    let startDate = localTsStartDate;
+    let endDate = localTsEndDate;
+    
+    // Apply date filters
+    const datesInRange = filteredDatesChronological.filter(date => {
+      if (startDate && date < startDate) return false;
+      if (endDate && date > endDate) return false;
+      return true;
+    });
+
+    if (datesInRange.length < 2) {
+      // Not enough data points for comparison
+      return {
+        ...enhancedSummary,
+        platforms: [],
+        platformData: {}
+      };
+    }
+
+    // Get entries for first and last dates in range
+    const firstDate = datesInRange[0];
+    const lastDate = datesInRange[datesInRange.length - 1];
+    
+    const firstEntries = entriesByDateFromStore.get(firstDate) || [];
+    const lastEntries = entriesByDateFromStore.get(lastDate) || [];
+    
+    // Build filtered platform data
+    const filteredPlatformData: { [platform: string]: any } = {};
+    const filteredPlatforms: string[] = [];
+    
+    // Calculate changes for each platform
+    lastEntries.forEach(currentEntry => {
+      const platform = currentEntry.platform;
+      const previousEntry = firstEntries.find(e => e.platform === platform);
+      
+      const currentAmount = currentEntry.amount;
+      const previousAmount = previousEntry?.amount || 0;
+      const absoluteChange = currentAmount - previousAmount;
+      const percentChange = previousAmount > 0 ? (absoluteChange / previousAmount) * 100 : 0;
+      
+      filteredPlatformData[platform] = {
+        amount: currentAmount,
+        rate: currentEntry.rate,
+        percentage: 0, // Will calculate after totals
+        previousAmount,
+        percentChange,
+        absoluteChange,
+        accountType: enhancedSummary.platformData[platform]?.accountType,
+        contributions: enhancedSummary.platformData[platform]?.contributions,
+        benchmark: enhancedSummary.platformData[platform]?.benchmark,
+        performance: enhancedSummary.platformData[platform]?.performance
+      };
+      
+      if (!filteredPlatforms.includes(platform)) {
+        filteredPlatforms.push(platform);
+      }
+    });
+    
+    // Calculate totals and percentages
+    const totalValue = Object.values(filteredPlatformData).reduce((sum: number, data: any) => sum + data.amount, 0);
+    const totalPreviousValue = Object.values(filteredPlatformData).reduce((sum: number, data: any) => sum + data.previousAmount, 0);
+    
+    // Update percentages
+    Object.keys(filteredPlatformData).forEach(platform => {
+      filteredPlatformData[platform].percentage = totalValue > 0 ? (filteredPlatformData[platform].amount / totalValue) * 100 : 0;
+    });
+    
+    const totalAbsoluteChange = totalValue - totalPreviousValue;
+    const totalPercentChange = totalPreviousValue > 0 ? (totalAbsoluteChange / totalPreviousValue) * 100 : 0;
+    
+    // Find largest holding
+    const largestHolding = filteredPlatforms.reduce((largest, platform) => {
+      const amount = filteredPlatformData[platform].amount;
+      return amount > largest.amount ? { platform, amount } : largest;
+    }, { platform: '', amount: 0 });
+    
+    return {
+      ...enhancedSummary,
+      totalValue,
+      totalPreviousValue,
+      percentChange: totalPercentChange,
+      absoluteChange: totalAbsoluteChange,
+      platforms: filteredPlatforms,
+      platformData: filteredPlatformData,
+      largestHolding
+    };
+  })();
 
   // --- Store Subscriptions ---
   const unsubscribeAssetStore = assetStore.subscribe(value => {
@@ -54,17 +160,10 @@
     globalSelectedDate = value.selectedDate;
     allDatesFromStore = value.allDates;
     entriesByDateFromStore = value.entriesByDate;
+    enhancedSummary = value.summary; // Get enhanced summary from store
     tsPerformanceType = value.timeSeriesPerformanceType;
     tsDateRangeFromStore = value.timeSeriesDateRange;
-    tsShowTotalFromStore = value.timeSeriesShowTotal; // ADDED subscription
-
-    // Initialize local TS date inputs if they haven't been set by user yet or if store changes them
-    if (tsDateRangeFromStore.start && localTsStartDate !== tsDateRangeFromStore.start) {
-        localTsStartDate = tsDateRangeFromStore.start;
-    }
-    if (tsDateRangeFromStore.end && localTsEndDate !== tsDateRangeFromStore.end) {
-        localTsEndDate = tsDateRangeFromStore.end;
-    }
+    tsShowTotalFromStore = value.timeSeriesShowTotal;
   });
 
   const unsubscribeTSData = platformPerformanceTimeSeriesData.subscribe(data => {
@@ -79,73 +178,68 @@
     unsubscribeTSData();
   });
 
-  // --- Data Calculation for Bar Chart ---
-  async function calculateBarChartData() {
-    if (!globalSelectedDate || allDatesFromStore.length === 0 || entriesByDateFromStore.size === 0) {
-      localBarChartSummary = null;
-      isLoadingBarChartData = false; // No data to load
-      return;
+  // --- Enhanced Bar Chart Data Preparation ---
+  function getBarChartData() {
+    const summaryData = filteredSummaryData || enhancedSummary;
+    if (!summaryData || !summaryData.platforms || summaryData.platforms.length === 0) {
+      return null;
     }
-    isLoadingBarChartData = true;
-    try {
-      const currentEntries = entriesByDateFromStore.get(globalSelectedDate) || [];
-      let previousEntries: AssetEntry[];
 
-      if (barChartComparisonPeriod === 'YTD') {
-        previousEntries = getYearStartEntries(globalSelectedDate, allDatesFromStore, entriesByDateFromStore);
-      } else { // 'MoM' or 'YoY'
-        previousEntries = getHistoricalEntries(globalSelectedDate, barChartComparisonPeriod, allDatesFromStore, entriesByDateFromStore);
-      }
-      
-      localBarChartSummary = calculateSummary(currentEntries, previousEntries);
-    } catch (error) {
-      console.error("Error calculating bar chart summary:", error);
-      localBarChartSummary = null;
-    } finally {
-      isLoadingBarChartData = false;
-    }
-  }
-
-  // --- Reactive Triggers for Bar Chart Data ---
-  $: if (globalSelectedDate && entriesByDateFromStore.size > 0) {
-    calculateBarChartData();
-  }
-  $: if (barChartComparisonPeriod) { // React to local period changes
-    calculateBarChartData();
-  }
-
-  // --- Chart Update Functions (to be refined for typings later) ---
-  function updateBarChart() {
-    if (isLoadingBarChartData || !localBarChartSummary || !barChartContainer || !localBarChartSummary.platforms) {
-        if(barChart) { barChart.destroy(); barChart = null;} // Clear chart if no data
-        return;
-    }
-    const platforms = localBarChartSummary.platforms;
+    const platforms = summaryData.platforms;
     const data = platforms.map(platform => {
-      const pd = localBarChartSummary!.platformData[platform];
+      const pd = summaryData.platformData[platform];
       return pd ? (showPercentageInBarChart ? pd.percentChange : pd.absoluteChange) : 0;
     });
+    
+    // Sort by performance (best to worst)
     const combined = platforms.map((p, i) => ({ platform: p, value: data[i] })).sort((a,b) => b.value - a.value);
     const sortedPlatforms = combined.map(item => item.platform);
     const sortedData = combined.map(item => item.value);
     const colors = sortedPlatforms.map(p => getPlatformColor(p));
-    const titleText = showPercentageInBarChart ? 'Change (%)' : 'Change ($)';
+    
+    return {
+      platforms: sortedPlatforms,
+      data: sortedData,
+      colors,
+      titleText: showPercentageInBarChart ? 'Change (%)' : 'Change ($)'
+    };
+  }
 
-    if (barChart) {
-      barChart.data.labels = sortedPlatforms;
-      barChart.data.datasets[0].data = sortedData;
-      barChart.data.datasets[0].backgroundColor = colors;
-      // Safely update bar chart X-axis title
-      if (barChart.options.scales?.x) {
-        if (!barChart.options.scales.x.title) {
-          barChart.options.scales.x.title = { display: true, text: titleText };
-        } else {
-          barChart.options.scales.x.title.text = titleText;
-          barChart.options.scales.x.title.display = true;
+  // --- Chart Update Functions ---
+  function updateBarChart() {
+    const chartData = getBarChartData();
+    if (!chartData || !barChartContainer) {
+      if(barChart) { barChart.destroy(); barChart = null;} // Clear chart if no data
+      return;
+    }
+
+    const { platforms, data, colors, titleText } = chartData;
+
+    // Check if existing chart is still valid (canvas not destroyed)
+    if (barChart && barChart.canvas && barChart.canvas.parentNode) {
+      try {
+        barChart.data.labels = platforms;
+        barChart.data.datasets[0].data = data;
+        barChart.data.datasets[0].backgroundColor = colors;
+        // Safely update bar chart X-axis title
+        if (barChart.options.scales?.x) {
+          if (!barChart.options.scales.x.title) {
+            barChart.options.scales.x.title = { display: true, text: titleText };
+          } else {
+            barChart.options.scales.x.title.text = titleText;
+            barChart.options.scales.x.title.display = true;
+          }
         }
+        barChart.update();
+      } catch (error) {
+        // Chart update failed, recreate
+        barChart.destroy();
+        barChart = null;
       }
-      barChart.update();
-    } else {
+    }
+    
+    // Create new chart if none exists or if update failed
+    if (!barChart) {
       const options: ChartOptions<'bar'> = {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
         scales: {
@@ -162,25 +256,39 @@
               },
               afterLabel: (context: TooltipItem<'bar'>) => {
                 const platform = context.label;
-                const platformInfo = localBarChartSummary?.platformData[platform];
+                const summaryData = filteredSummaryData || enhancedSummary;
+                const platformInfo = summaryData?.platformData[platform];
                 if (!platformInfo) return '';
-                return showPercentageInBarChart 
+                
+                // Enhanced tooltips with contribution data
+                let tooltip = showPercentageInBarChart 
                   ? `Absolute: ${formatCurrency(platformInfo.absoluteChange)}` 
                   : `Percentage: ${formatPercentage(platformInfo.percentChange)}`;
+                
+                if (hasContributionData && platformInfo.contributions) {
+                  tooltip += `\nContributions: ${formatCurrency(platformInfo.contributions)}`;
+                }
+                
+                return tooltip;
               }
             }
           }
         }
       };
-      barChart = new Chart(barChartContainer, { type: 'bar', data: { labels: sortedPlatforms, datasets: [{ data: sortedData, backgroundColor: colors }] }, options });
+      barChart = new Chart(barChartContainer, { type: 'bar', data: { labels: platforms, datasets: [{ data: data, backgroundColor: colors }] }, options });
     }
   }
 
   function updateTimeSeriesChart() {
-    if (!timeSeriesChartContainer || !timeSeriesDataForChart || Object.keys(timeSeriesDataForChart).length === 0) {
+    if (!timeSeriesChartContainer) {
+      return;
+    }
+
+    if (!timeSeriesDataForChart || Object.keys(timeSeriesDataForChart).length === 0) {
       if (timeSeriesChart) { timeSeriesChart.destroy(); timeSeriesChart = null; }
       return;
     }
+    
     const datasets = Object.entries(timeSeriesDataForChart).map(([key, points]) => ({
       label: key, // Will be "Total Portfolio" or platform name
       data: points.map(p => ({ x: parseDate(p.date, 'yyyy-MM-dd', new Date()).getTime(), y: p.value })),
@@ -216,20 +324,30 @@
 
     const yAxisTitleText = tsPerformanceType === 'interval' ? 'Interval Performance (%)' : 'Cumulative Performance (%)';
 
-    if (timeSeriesChart) {
-      timeSeriesChart.data.datasets = datasets;
-      // Safely update time series chart Y-axis title
-      if (timeSeriesChart.options.scales?.y) {
-        if (!timeSeriesChart.options.scales.y.title) {
-          timeSeriesChart.options.scales.y.title = { display: true, text: yAxisTitleText };
-        } else {
-          timeSeriesChart.options.scales.y.title.text = yAxisTitleText;
-          timeSeriesChart.options.scales.y.title.display = true;
+    // Check if existing chart is still valid (canvas not destroyed)
+    if (timeSeriesChart && timeSeriesChart.canvas && timeSeriesChart.canvas.parentNode) {
+      try {
+        timeSeriesChart.data.datasets = datasets;
+        // Safely update time series chart Y-axis title
+        if (timeSeriesChart.options.scales?.y) {
+          if (!timeSeriesChart.options.scales.y.title) {
+            timeSeriesChart.options.scales.y.title = { display: true, text: yAxisTitleText };
+          } else {
+            timeSeriesChart.options.scales.y.title.text = yAxisTitleText;
+            timeSeriesChart.options.scales.y.title.display = true;
+          }
         }
+        if (timeSeriesChart.options.plugins) timeSeriesChart.options.plugins.annotation = annotationPluginOptions;
+        timeSeriesChart.update();
+      } catch (error) {
+        // Chart update failed, recreate
+        timeSeriesChart.destroy();
+        timeSeriesChart = null;
       }
-      if (timeSeriesChart.options.plugins) timeSeriesChart.options.plugins.annotation = annotationPluginOptions;
-      timeSeriesChart.update();
-    } else {
+    }
+    
+    // Create new chart if none exists or if update failed
+    if (!timeSeriesChart) {
       const options: ChartOptions<'line'> = {
         responsive: true, maintainAspectRatio: false,
         scales: {
@@ -251,10 +369,6 @@
     assetStore.setPlatformPerformanceView(view);
   }
 
-  function handleBarChartPeriodChange(period: 'MoM' | 'YTD' | 'YoY') {
-    barChartComparisonPeriod = period; // This will trigger reactive data calculation
-  }
-
   function handleTsPerformanceTypeChange(type: 'interval' | 'cumulative') {
     assetStore.setTimeSeriesPerformanceType(type);
   }
@@ -265,9 +379,10 @@
   }
 
   function applyDateRange() {
-    const start = localTsStartDate ? formatDateFns(parseDate(localTsStartDate, 'yyyy-MM-dd', new Date()), 'yyyy-MM-dd') : null;
-    const end = localTsEndDate ? formatDateFns(parseDate(localTsEndDate, 'yyyy-MM-dd', new Date()), 'yyyy-MM-dd') : null;
-    assetStore.setTimeSeriesDateRange({ start, end });
+    // Apply current display values as custom filters
+    localTsStartDate = displayStartDate;
+    localTsEndDate = displayEndDate;
+    assetStore.setTimeSeriesDateRange({ start: displayStartDate, end: displayEndDate });
   }
   
   function clearDateRange() {
@@ -277,32 +392,61 @@
   }
 
   // --- Reactive Updates for Chart Rendering ---
-  $: if (currentView === 'bar') {
-    if (!isLoadingBarChartData && localBarChartSummary) {
-      updateBarChart();
-    } else if (!isLoadingBarChartData && !localBarChartSummary) {
-      // Handle empty/error state for bar chart (e.g., destroy or show 'no data')
-      if(barChart) { barChart.destroy(); barChart = null;}
+  // Simple reactive statement for view changes only
+  $: if (currentView) {
+    // Clean up opposite chart when switching views
+    if (currentView === 'bar' && timeSeriesChart) {
+      timeSeriesChart.destroy();
+      timeSeriesChart = null;
+    } else if (currentView === 'timeseries' && barChart) {
+      barChart.destroy();
+      barChart = null;
     }
-  } else if (currentView === 'timeseries') {
-    updateTimeSeriesChart(); // This will handle its own empty data check
   }
-  
-  // Update bar chart view when its specific data view toggle changes
-  $: if (barChartDataView && currentView === 'bar' && !isLoadingBarChartData && localBarChartSummary) {
+
+  // Update bar chart when container becomes available or data changes
+  $: if (currentView === 'bar' && barChartContainer && filteredSummaryData) {
     updateBarChart();
   }
 
-  onMount(() => {
-    // Initial data calculation for bar chart based on current global date and default local period
-    calculateBarChartData().then(() => {
-        if (currentView === 'bar') updateBarChart();
-    });
-    // Initial setup for TS chart if it's the active view
-    if (currentView === 'timeseries') updateTimeSeriesChart();
+  // Update bar chart view when toggle changes
+  $: if (currentView === 'bar' && barChartContainer && barChartDataView) {
+    updateBarChart();
+  }
 
-    if (tsDateRangeFromStore.start && !localTsStartDate) localTsStartDate = tsDateRangeFromStore.start;
-    if (tsDateRangeFromStore.end && !localTsEndDate) localTsEndDate = tsDateRangeFromStore.end;
+  // Update time series chart when container becomes available or data changes  
+  $: if (currentView === 'timeseries' && timeSeriesChartContainer && timeSeriesDataForChart) {
+    updateTimeSeriesChart();
+  }
+
+  // Update time series chart when settings change
+  $: if (currentView === 'timeseries' && timeSeriesChartContainer && timeSeriesDataForChart && (tsPerformanceType || tsShowTotalFromStore !== undefined)) {
+    updateTimeSeriesChart();
+  }
+
+  // Sync local date inputs with store (without triggering chart updates)
+  $: if (tsDateRangeFromStore) {
+    if (tsDateRangeFromStore.start && localTsStartDate !== tsDateRangeFromStore.start) {
+      localTsStartDate = tsDateRangeFromStore.start;
+    } else if (!tsDateRangeFromStore.start && localTsStartDate) {
+      localTsStartDate = null;
+    }
+    if (tsDateRangeFromStore.end && localTsEndDate !== tsDateRangeFromStore.end) {
+      localTsEndDate = tsDateRangeFromStore.end;
+    } else if (!tsDateRangeFromStore.end && localTsEndDate) {
+      localTsEndDate = null;
+    }
+  }
+
+  onMount(() => {
+    // Use setTimeout to ensure DOM is fully rendered
+    setTimeout(() => {
+      if (currentView === 'bar') {
+        updateBarChart();
+      } else if (currentView === 'timeseries') {
+        updateTimeSeriesChart();
+      }
+    }, 50); // Small delay to ensure DOM is ready
   });
 
 </script>
@@ -313,7 +457,7 @@
     <div class="view-toggle-buttons">
       <button class="toggle-btn {currentView === 'bar' ? 'active' : ''}" 
               on:click={() => setView('bar')}>
-        Bar Chart
+        Summary
       </button>
       <button class="toggle-btn {currentView === 'timeseries' ? 'active' : ''}" 
               on:click={() => setView('timeseries')}>
@@ -322,51 +466,65 @@
     </div>
   </div>
 
+  <!-- Common controls that apply to both views -->
+  <div class="common-controls">
+    <div class="control-group date-range-controls">
+      <span class="stat-label">Date Range:</span>
+      <input 
+        type="date" 
+        bind:value={displayStartDate}
+        title="Start Date"
+      />
+      <span class="stat-label">to</span>
+      <input 
+        type="date" 
+        bind:value={displayEndDate}
+        title="End Date"
+      />
+      <div class="date-range-actions">
+        <button 
+          class="action-btn apply-btn" 
+          on:click={applyDateRange}
+          title="Apply Date Range"
+        >
+          Apply
+        </button>
+        <button 
+          class="action-btn clear-btn" 
+          on:click={clearDateRange}
+          title="Clear Date Range"
+        >
+          Clear
+        </button>
+      </div>
+    </div>
+  </div>
+
   {#if currentView === 'bar'}
-    <div class="bar-chart-controls">
-        <div class="stat-label">View:</div>
+    <div class="view-specific-controls">
+      <div class="control-group">
+        <span class="stat-label">View:</span>
         <div class="view-toggle">
-            <button class="toggle-btn {barChartDataView === 'percentage' ? 'active' : ''}" 
-                    on:click={() => barChartDataView = 'percentage'}>
-              Percentage
-            </button>
-            <button class="toggle-btn {barChartDataView === 'absolute' ? 'active' : ''}" 
-                    on:click={() => barChartDataView = 'absolute'}>
-              Absolute
-            </button>
+          <button class="toggle-btn {barChartDataView === 'percentage' ? 'active' : ''}" 
+                  on:click={() => barChartDataView = 'percentage'}>
+            Percentage
+          </button>
+          <button class="toggle-btn {barChartDataView === 'absolute' ? 'active' : ''}" 
+                  on:click={() => barChartDataView = 'absolute'}>
+            Absolute
+          </button>
         </div>
-        <!-- New Bar Chart Comparison Period Toggle -->
-        <div class="stat-label" style="margin-left: var(--space-md);">Compare:</div>
-        <div class="view-toggle">
-            <button class="toggle-btn {barChartComparisonPeriod === 'MoM' ? 'active' : ''}" 
-                    on:click={() => handleBarChartPeriodChange('MoM')}>
-              MoM
-            </button>
-            <button class="toggle-btn {barChartComparisonPeriod === 'YTD' ? 'active' : ''}" 
-                    on:click={() => handleBarChartPeriodChange('YTD')}>
-              YTD
-            </button>
-            <button class="toggle-btn {barChartComparisonPeriod === 'YoY' ? 'active' : ''}" 
-                    on:click={() => handleBarChartPeriodChange('YoY')}>
-              YoY
-            </button>
-        </div>
+      </div>
     </div>
-    <div class="performance-stats">
-      <!-- Best/Worst performer can be derived from summary,
-           make sure it respects barChartDataView (showPercentageInBarChart) -->
-      <!-- Example: (logic to find best/worst would need to be here or passed in) -->
-      <!-- {#if bestPlatform} ... {/if} -->
-    </div>
-    <div class="chart-container" style="{localBarChartSummary && localBarChartSummary.platforms && localBarChartSummary.platforms.length === 0 ? 'min-height: 100px;' : ''}">
-      {#if !localBarChartSummary || !localBarChartSummary.platforms || localBarChartSummary.platforms.length === 0}
+    <div class="chart-container" style="{filteredSummaryData && filteredSummaryData.platforms && filteredSummaryData.platforms.length === 0 ? 'min-height: 100px;' : ''}">
+      {#if !filteredSummaryData || !filteredSummaryData.platforms || filteredSummaryData.platforms.length === 0}
         <div class="no-data">No performance data for selected period</div>
       {:else}
         <canvas bind:this={barChartContainer}></canvas>
       {/if}
     </div>
   {:else if currentView === 'timeseries'}
-    <div class="timeseries-controls">
+    <div class="view-specific-controls">
       <div class="control-group">
         <span class="stat-label">Performance Type:</span>
         <div class="view-toggle">
@@ -374,35 +532,6 @@
           <button class="toggle-btn {tsPerformanceType === 'cumulative' ? 'active' : ''}" on:click={() => handleTsPerformanceTypeChange('cumulative')}>Cumulative</button>
         </div>
       </div>
-      <div class="control-group date-range-controls">
-        <span class="stat-label">Date Range:</span>
-        <input type="date" bind:value={localTsStartDate} title="Start Date" />
-        <span class="stat-label">to</span>
-        <input type="date" bind:value={localTsEndDate} title="End Date" />
-        <div class="date-range-actions">
-          <button 
-            class="action-btn apply-btn" 
-            on:click={applyDateRange}
-            title="Apply Date Range"
-          >
-            <!-- Apply SVG Icon -->
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" style="display: block; margin: auto;">
-              <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path>
-            </svg>
-          </button>
-          <button 
-            class="action-btn clear-btn" 
-            on:click={clearDateRange}
-            title="Clear Date Range"
-          >
-            <!-- Clear SVG Icon -->
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" style="display: block; margin: auto;">
-              <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"></path>
-            </svg>
-          </button>
-        </div>
-      </div>
-      <!-- ADDED Show Total Toggle -->
       <div class="control-group">
         <label class="checkbox-label">
           <input type="checkbox" bind:checked={tsShowTotalFromStore} on:change={handleTsShowTotalChange} />
@@ -442,18 +571,6 @@
     border: 1px solid rgba(109, 90, 80, 0.3);
   }
 
-  .bar-chart-controls {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    margin-bottom: var(--space-md);
-  }
-
-  .bar-chart-controls .stat-label {
-      font-size: 0.9rem;
-      color: var(--color-stone-gray);
-  }
-  
   /* Ensure toggle-btn styles from original apply to both toggles */
   .toggle-btn {
     padding: var(--space-sm) var(--space-md);
@@ -499,51 +616,7 @@
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
   }
   
-  .performance-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-md);
-    margin-bottom: var(--space-md);
-  }
-  
-  .stat-card {
-    padding: var(--space-md);
-    border-radius: var(--border-radius-sm);
-    background-color: rgba(95, 116, 100, 0.05);
-  }
-  
-  .stat-card.best {
-    border-left: 3px solid var(--color-positive);
-  }
-  
-  .stat-card.worst {
-    border-left: 3px solid var(--color-negative);
-  }
-  
-  .stat-label {
-    font-size: 0.9rem;
-    color: var(--color-stone-gray);
-    margin-bottom: var(--space-xs);
-  }
-  
-  .stat-value {
-    font-size: 1.2rem;
-    font-weight: 600;
-    margin-bottom: var(--space-xs);
-  }
-  
-  .stat-change {
-    font-size: 1rem;
-    font-weight: 500;
-  }
-  
-  .positive {
-    color: var(--color-positive);
-  }
-  
-  .negative {
-    color: var(--color-negative);
-  }
+
   
   .chart-container {
     height: 350px;
@@ -564,65 +637,202 @@
     .performance-header {
       flex-direction: column;
       align-items: flex-start;
+      gap: var(--space-sm);
     }
     
     .view-toggle-buttons {
-      margin-top: var(--space-sm);
+      width: 100%;
     }
     
-    .performance-stats {
-      grid-template-columns: 1fr;
+    .view-toggle-buttons .toggle-btn {
+      flex: 1;
+      min-height: 44px;
+    }
+    
+    .common-controls {
+      padding: var(--space-sm);
+    }
+    
+    .view-specific-controls {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-md);
+      padding: var(--space-sm);
+    }
+    
+    .control-group {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-xs);
+    }
+    
+    .date-range-controls {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-sm);
+    }
+    
+    .date-range-controls input[type="date"] {
+      width: 100%;
+      padding: var(--space-sm);
+      font-size: 1rem;
+      min-height: 44px;
+    }
+    
+    .date-range-actions {
+      margin-left: 0;
+      justify-content: stretch;
+    }
+    
+    .action-btn {
+      flex: 1;
+      padding: var(--space-sm);
+      min-height: 44px;
+      font-size: 1rem;
+    }
+    
+    .view-toggle {
+      width: 100%;
+    }
+    
+    .toggle-btn {
+      flex: 1;
+      padding: var(--space-sm);
+      min-height: 44px;
+      font-size: 0.9rem;
+    }
+    
+    .stat-label {
+      font-weight: 500;
+      margin-bottom: var(--space-xs);
+    }
+    
+    .checkbox-label {
+      padding: var(--space-sm);
+      min-height: 44px;
+      width: 100%;
+      justify-content: flex-start;
+    }
+    
+    .chart-container {
+      height: 300px;
     }
   }
 
-  .timeseries-controls {
+  .common-controls {
+    background-color: rgba(95, 116, 100, 0.02);
+    border: 1px solid rgba(95, 116, 100, 0.1);
+    border-radius: var(--border-radius-sm);
+    padding: var(--space-md);
+    margin-bottom: var(--space-md);
+  }
+
+  .view-specific-controls {
     display: flex;
-    flex-direction: column; /* Stack control groups */
-    gap: var(--space-md);
+    align-items: center;
+    gap: var(--space-lg);
     margin-bottom: var(--space-md);
     padding: var(--space-sm);
-    background-color: rgba(0,0,0,0.02);
+    background-color: rgba(0,0,0,0.01);
     border-radius: var(--border-radius-sm);
   }
+
   .control-group {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
   }
+
+  .view-toggle { /* Added this wrapper class for styling consistency */
+    display: inline-flex;
+    border-radius: var(--border-radius-md);
+    overflow: hidden;
+    border: 1px solid rgba(109, 90, 80, 0.3);
+  }
+  
+  /* Styles for Percentage/Absolute and MoM/YTD/YoY toggles */
+  .view-toggle .toggle-btn {
+     border-right: 1px solid rgba(109, 90, 80, 0.3);
+  }
+   .view-toggle .toggle-btn:last-child {
+    border-right: none;
+  }
+  
+  .toggle-btn:hover {
+    background-color: rgba(155, 155, 147, 0.1);
+  }
+  
+  .toggle-btn.active {
+    background-color: rgba(255, 255, 255, 0.7); /* A slightly more opaque white for active */
+    color: var(--color-deep-brown);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  .date-range-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+  }
+  
   .date-range-controls input[type="date"] {
     padding: var(--space-xs);
-    border: 1px solid var(--color-stone-gray-light);
+    border: 1px solid var(--color-stone-gray);
     border-radius: var(--border-radius-sm);
+    font-size: 0.9rem;
   }
+  
+  .date-range-actions {
+    display: flex;
+    gap: var(--space-xs);
+    margin-left: var(--space-sm);
+  }
+  
   .action-btn {
-    padding: var(--space-xs) var(--space-md); /* Base padding */
-    background-color: var(--color-accent);
-    color: white;
-    border: none;
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--color-stone-gray);
     border-radius: var(--border-radius-sm);
     cursor: pointer;
+    font-size: 0.85rem;
     font-weight: 500;
-    transition: background-color 0.2s ease;
-    min-width: 50px; /* Ensure a minimum width for icon buttons */
-    display: inline-flex; /* Helps center icon if needed */
+    transition: all 0.2s ease;
+    min-width: auto;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    background: white;
+    color: var(--color-stone-gray);
   }
+
   .action-btn:hover {
-    background-color: var(--color-accent-dark);
+    background-color: var(--color-forest-green);
+    color: white;
+    border-color: var(--color-forest-green);
+    transform: none;
   }
 
   .action-btn.apply-btn {
-    margin-right: var(--space-sm);
+    border-color: var(--color-forest-green);
+    color: var(--color-forest-green);
   }
 
-  /* Optional: Adjust icon size if needed via CSS, though inline width/height on SVG is usually fine */
-  .action-btn svg {
-    /* width: 1em; */ /* Example: scales with font size */
-    /* height: 1em; */
+  .action-btn.clear-btn {
+    border-color: var(--color-stone-gray);
+    color: var(--color-stone-gray);
   }
 
-  /* ADDED styles for checkbox label */
+  .action-btn.clear-btn:hover {
+    background-color: var(--color-stone-gray);
+    color: white;
+    border-color: var(--color-stone-gray);
+  }
+
+  .stat-label {
+    font-size: 0.9rem;
+    color: var(--color-stone-gray);
+    font-weight: 500;
+  }
+
   .checkbox-label {
     display: flex;
     align-items: center;
@@ -630,10 +840,20 @@
     font-size: 0.9rem;
     color: var(--color-stone-gray);
     cursor: pointer;
+    font-weight: 500;
   }
 
   .checkbox-label input[type="checkbox"] {
     cursor: pointer;
-    /* Add more specific styling if needed to match app theme */
+  }
+
+  .date-range-controls input[type="date"]::-webkit-datetime-edit {
+    color: var(--color-stone-gray);
+  }
+
+  .date-range-controls input[type="date"]:focus {
+    outline: none;
+    border-color: var(--color-forest-green);
+    box-shadow: 0 0 0 2px rgba(95, 116, 100, 0.2);
   }
 </style>

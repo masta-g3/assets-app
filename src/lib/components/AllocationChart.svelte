@@ -9,6 +9,13 @@
   
   $: allocationData = $groupedAllocationData;
   $: groupBy = $assetStore.allocationChartGroupBy;
+  $: platformTags = $assetStore.platformTags;
+  
+  // Check if any tags are assigned
+  $: hasAnyTags = Object.keys(platformTags).length > 0 && Object.values(platformTags).some(tag => tag && tag.trim());
+  
+  // Check if user is trying to use tag view without any tags
+  $: showTagEmptyMessage = groupBy === 'tag' && !hasAnyTags;
 
   // Create or update chart
   function updateChart() {
@@ -135,6 +142,14 @@
     </div>
   </div>
   
+  {#if showTagEmptyMessage}
+    <div class="tag-empty-message">
+      <div class="message-content">
+        <p>No tags assigned. Use <strong>Data Management → Edit Tags</strong> to group platforms.</p>
+      </div>
+    </div>
+  {/if}
+  
   <div class="chart-container">
     {#if !allocationData || allocationData.data.length === 0}
       <div class="no-data">No allocation data available</div>
@@ -195,6 +210,23 @@
   
   .group-toggle button:not(.active):hover {
     background-color: var(--hover-background-color);
+  }
+  
+  .tag-empty-message {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    color: #856404;
+  }
+  
+  .message-content p {
+    margin: 0 0 0.5rem 0;
+  }
+  
+  .message-content p:last-child {
+    margin-bottom: 0;
   }
   
   .chart-container {

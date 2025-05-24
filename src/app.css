@@ -6,6 +6,8 @@
   --color-deep-brown: #6D5A50;     /* Earthy, muted brown (like forest floor in Totoro) */
   --color-stone-gray: #9B9B93;     /* Muted sage gray (like Howl's environment) */
   --color-green: #657259;          /* Muted forest green (like Ghibli landscapes) */
+  --color-forest-green: #5F7464;   /* Forest green for components */
+  --color-forest-dark: #4A5C4F;    /* Darker forest green */
   --color-sandstone: #C2B099;      /* Soft, warm cream (like Spirited Away backgrounds) */
   --color-sky-blue: #A3C5E6;       /* Soft sky blue (like Castle in the Sky) */
   --color-ochre: #D99E68;          /* Warm, dusty orange (like Kiki's sunset) */

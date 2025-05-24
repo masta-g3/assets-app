@@ -20,9 +20,13 @@
   
   // State for chart toggle
   let showRatesChart = false;
+  let showContributionAnalysis = false; // New toggle for contribution vs market growth
   
   // State for theme detection
   let isDarkMode = false;
+  
+  // Subscribe to store for enhanced summary data
+  let enhancedSummary: any = null;
   
   // Subscribe to rate data from the store
   let monthlyRateData: MonthlyRateData = { dates: [], expectedRates: [], realizedRates: [] };
@@ -30,7 +34,13 @@
     if (value.monthlyRateData) {
       monthlyRateData = value.monthlyRateData;
     }
+    if (value.summary) {
+      enhancedSummary = value.summary;
+    }
   });
+  
+  // Check if we have contribution data available
+  $: hasContributionData = enhancedSummary?.cashFlowMetrics?.contributionsByPeriod?.length > 0;
   
   // Prepare data for the VALUE chart
   function prepareValueChartData() {
@@ -76,6 +86,73 @@
       datasets
     };
   }
+
+  // NEW: Prepare data for contribution vs market growth analysis
+  function prepareContributionAnalysisData() {
+    if (!hasContributionData || !enhancedSummary?.cashFlowMetrics?.contributionsByPeriod) {
+      return null;
+    }
+
+    // Group by date first
+    const entriesByDate = groupByDate(assets);
+    const dates = [...entriesByDate.keys()].sort();
+    
+    // Calculate cumulative contributions and market performance over time
+    let cumulativeContributions = 0;
+    let cumulativeValue = 0;
+    
+    const contributionData: number[] = [];
+    const marketGrowthData: number[] = [];
+    const totalValueData: number[] = [];
+    const contributionAmountsByDate: { [date: string]: number } = {};
+    
+    // Build contribution amounts by date from enhanced summary
+    enhancedSummary.cashFlowMetrics.contributionsByPeriod.forEach((contrib: any) => {
+      contributionAmountsByDate[contrib.date] = contrib.amount;
+    });
+    
+    dates.forEach((date, index) => {
+      const entriesForDate = entriesByDate.get(date) || [];
+      const currentValue = entriesForDate.reduce((sum, entry) => sum + entry.amount, 0);
+      
+      // Add contributions for this period
+      const contributionsThisPeriod = contributionAmountsByDate[date] || 0;
+      cumulativeContributions += contributionsThisPeriod;
+      
+      // Calculate market growth as total value minus contributions
+      const marketGrowth = currentValue - cumulativeContributions;
+      
+      contributionData.push(cumulativeContributions);
+      marketGrowthData.push(marketGrowth);
+      totalValueData.push(currentValue);
+    });
+    
+    return {
+      dates: dates.map(date => format(parse(date, 'yyyy-MM-dd', new Date()), 'MMM yyyy')),
+      datasets: [
+        {
+          label: 'Contributions',
+          data: contributionData,
+          backgroundColor: 'rgba(99, 102, 241, 0.7)', // Indigo
+          borderColor: 'rgb(99, 102, 241)',
+          borderWidth: 2,
+          fill: 'origin',
+          stack: 'stack0'
+        },
+        {
+          label: 'Market Growth',
+          data: marketGrowthData,
+          backgroundColor: 'rgba(34, 197, 94, 0.7)', // Green
+          borderColor: 'rgb(34, 197, 94)',
+          borderWidth: 2,
+          fill: 'origin',
+          stack: 'stack0'
+        }
+      ],
+      contributionAmountsByDate,
+      totalValueData
+    };
+  }
   
   // Create or update chart
   function renderChart() {
@@ -87,6 +164,8 @@
     
     if (showRatesChart) {
       renderRatesChart();
+    } else if (showContributionAnalysis && hasContributionData) {
+      renderContributionAnalysisChart();
     } else {
       renderValueChart();
     }
@@ -145,6 +224,87 @@
                   total += item.parsed.y;
                 });
                 return `Total: ${formatCurrency(total)}`;
+              }
+            }
+          },
+          legend: {
+            position: 'bottom',
+            labels: {
+              font: {
+                family: 'Inter, system-ui, sans-serif',
+                size: 12
+              },
+              padding: 16
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // NEW: Render the Contribution Analysis Chart
+  function renderContributionAnalysisChart() {
+    const analysisData = prepareContributionAnalysisData();
+    if (!analysisData) return;
+    
+    const { dates, datasets, contributionAmountsByDate, totalValueData } = analysisData;
+    
+    chartInstance = new Chart(chartContainer, {
+      type: 'line',
+      data: {
+        labels: dates,
+        datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Date'
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Value ($)'
+            },
+            stacked: true,
+            beginAtZero: true
+          }
+        },
+        interaction: {
+          mode: 'nearest',
+          axis: 'x',
+          intersect: false
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              title: (context) => {
+                return context[0].label;
+              },
+              label: (context) => {
+                const datasetLabel = context.dataset.label;
+                const value = context.parsed.y;
+                return `${datasetLabel}: ${formatCurrency(value)}`;
+              },
+              footer: (context) => {
+                const dateIndex = context[0].dataIndex;
+                const dateLabel = dates[dateIndex];
+                const originalDate = Object.keys(groupByDate(assets)).sort()[dateIndex];
+                
+                // Get contribution amount for this specific date
+                const contributionAmount = contributionAmountsByDate[originalDate] || 0;
+                const totalValue = totalValueData[dateIndex];
+                
+                let footer = `Total Portfolio: ${formatCurrency(totalValue)}`;
+                if (contributionAmount > 0) {
+                  footer += `\nContributions This Period: ${formatCurrency(contributionAmount)}`;
+                }
+                
+                return footer;
               }
             }
           },
@@ -297,22 +457,35 @@
     }
   });
   
-  $: assets, selectedDate, showRatesChart, renderChart(); // Reactive statement to re-render
-  $: monthlyRateData, renderChart();
+  $: assets, selectedDate, showRatesChart, showContributionAnalysis, renderChart(); // Reactive statement to re-render
+  $: monthlyRateData, enhancedSummary, renderChart();
 </script>
 
 <div class="evolution-chart card">
   <div class="chart-header">
-    <h3>{showRatesChart ? 'Return Rate Analysis' : 'Portfolio Evolution'}</h3>
+    <h3>
+      {#if showRatesChart}
+        Return Rate Analysis
+      {:else if showContributionAnalysis}
+        Performance Attribution
+      {:else}
+        Portfolio Evolution
+      {/if}
+    </h3>
     <div class="toggle-buttons">
-      <button class:active={!showRatesChart} on:click={() => showRatesChart = false}>Value</button>
-      <button class:active={showRatesChart} on:click={() => showRatesChart = true} disabled={monthlyRateData.dates.length < 2}>Rates</button>
+      <button class:active={!showRatesChart && !showContributionAnalysis} on:click={() => { showRatesChart = false; showContributionAnalysis = false; }}>Value</button>
+      {#if hasContributionData}
+        <button class:active={showContributionAnalysis && !showRatesChart} on:click={() => { showRatesChart = false; showContributionAnalysis = true; }}>Attribution</button>
+      {/if}
+      <button class:active={showRatesChart} on:click={() => { showRatesChart = true; showContributionAnalysis = false; }} disabled={monthlyRateData.dates.length < 2}>Rates</button>
     </div>
   </div>
   
   <div class="chart-container">
     {#if assets.length === 0}
       <div class="no-data">No evolution data available</div>
+    {:else if showContributionAnalysis && !hasContributionData}
+      <div class="no-data">No contribution data available for performance attribution</div>
     {:else}
       <canvas bind:this={chartContainer}></canvas>
     {/if}

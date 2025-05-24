@@ -11,6 +11,7 @@ import {
   getPlatformColor,
   type AssetSummary
 } from '../utils/calculations';
+import { calculateEnhancedAnalytics, type EnhancedAssetSummary } from '../analytics';
 
 // State types
 interface AssetState {
@@ -24,7 +25,7 @@ interface AssetState {
   momEntries: AssetEntry[];
   yoyEntries: AssetEntry[];
   yearStartEntries: AssetEntry[];
-  summary: AssetSummary;
+  summary: EnhancedAssetSummary;
   comparisonPeriod: 'MoM' | 'YTD' | 'YoY';
   dataView: 'percentage' | 'absolute';
   monthlyRateData: MonthlyRateData;
@@ -80,7 +81,24 @@ const createAssetStore = () => {
       avgRate: 0,
       largestHolding: { platform: '', amount: 0 },
       platforms: [],
-      platformData: {}
+      platformData: {},
+      portfolioMetrics: {
+        timeWeightedReturn: 0,
+        moneyWeightedReturn: 0,
+        cagr: 0,
+        totalReturn: 0,
+        volatility: 0
+      },
+      cashFlowMetrics: {
+        totalContributions: 0,
+        totalWithdrawals: 0,
+        netContributions: 0,
+        contributionGains: 0,
+        investmentGains: 0,
+        averageContributionAmount: 0,
+        contributionFrequency: 0,
+        contributionsByPeriod: []
+      }
     },
     comparisonPeriod: 'MoM',
     dataView: 'percentage',
@@ -131,18 +149,18 @@ const createAssetStore = () => {
       const selectedDate = allDates.length > 0 ? allDates[0] : '';
       
       // Get entries for selected date
-      const currentEntries = entriesByDate.get(selectedDate) || [];
+      const currentEntries = selectedDate ? (entriesByDate.get(selectedDate) || []) : [];
       
       // Determine various comparison entries for the selectedDate
       const momEntries = getHistoricalEntries(selectedDate, 'MoM', allDates, entriesByDate);
       const yoyEntries = getHistoricalEntries(selectedDate, 'YoY', allDates, entriesByDate);
       const yearStartEntries = getYearStartEntries(selectedDate, allDates, entriesByDate);
 
-      // previousEntries for summary is based on the initial comparisonPeriod
+      // previousEntries for summary is based on the initial comparisonPeriod  
       const previousEntries = getComparisonEntries(selectedDate, initialState.comparisonPeriod, allDates, entriesByDate);
       
-      // Calculate summary statistics
-      const summary = calculateSummary(currentEntries, previousEntries);
+      // Calculate enhanced summary statistics
+      const summary = calculateEnhancedAnalytics(currentEntries, previousEntries);
       
       // Calculate monthly rates
       const monthlyRateData = calculateMonthlyRates(allDates, entriesByDate);
@@ -187,7 +205,7 @@ const createAssetStore = () => {
       // previousEntries for summary is based on the current state.comparisonPeriod
       const previousEntries = getComparisonEntries(date, state.comparisonPeriod, state.allDates, state.entriesByDate);
       
-      const summary = calculateSummary(currentEntries, previousEntries);
+      const summary = calculateEnhancedAnalytics(currentEntries, previousEntries);
       
       // Calculate monthly rates
       const monthlyRateData = calculateMonthlyRates(state.allDates, state.entriesByDate);
@@ -212,7 +230,7 @@ const createAssetStore = () => {
       // Only need to recalculate previousEntries and summary, as currentEntries and other specific
       // historical entries (mom, yoy, yearStart) depend on selectedDate, not the comparisonPeriod for the summary.
       const previousEntries = getComparisonEntries(state.selectedDate, period, state.allDates, state.entriesByDate);
-      const summary = calculateSummary(state.currentEntries, previousEntries);
+      const summary = calculateEnhancedAnalytics(state.currentEntries, previousEntries);
       
       return {
         ...state,

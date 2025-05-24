@@ -8,14 +8,16 @@
   
   let editMode = false;
   let editedEntries: AssetEntry[] = [];
-  let newEntry: Omit<AssetEntry, 'id'> = {
+  let showAddForm = false;
+  
+  // Single simple entry form
+  let newEntry = {
     date: '',
     platform: '',
-    amount: 0,
-    rate: 0
+    balance: 0,
+    contributions: 0,
+    expectedReturn: 0
   };
-  let showAddForm = false;
-  let showDateInput = false;
   
   // Update edited entries when entries change
   $: {
@@ -38,7 +40,7 @@
     };
   });
   
-  // --- NEW: Derive unique platform names from the store --- 
+  // Derive unique platform names from the store
   let uniquePlatforms: string[] = [];
   $: {
     if ($assetStore.assets) {
@@ -50,7 +52,6 @@
   // Toggle edit mode
   function toggleEditMode() {
     if (editMode) {
-      // Exiting edit mode without saving
       editedEntries = entries.map(entry => ({ ...entry }));
     }
     editMode = !editMode;
@@ -85,44 +86,54 @@
     }
   }
   
-  // Toggle add form
-  function toggleAddForm() {
-    showAddForm = !showAddForm;
-    showDateInput = false;
-    if (showAddForm) {
-      newEntry = {
-        date,
-        platform: uniquePlatforms[0] || '',
-        amount: 0,
-        rate: 0
-      };
+  // Update data quality when contribution amount changes
+  function updateEntryDataQuality(entry: AssetEntry) {
+    // Auto-determine transaction type based on contribution amount
+    const hasContribution = entry.contributionAmount && entry.contributionAmount > 0;
+    
+    if (hasContribution) {
+      entry.transactionType = 'contribution';
+      entry.dataQuality = 'enhanced';
+    } else {
+      entry.transactionType = 'snapshot';
+      entry.contributionAmount = undefined;
+      entry.dataQuality = 'snapshot_only';
     }
   }
-  
-  // Add new entry
-  async function addNewEntry() {
-    if (!newEntry.platform) {
-      alert('Please fill in all fields correctly');
+
+  // Add entry (auto-determines type based on contributions)
+  async function addEntry() {
+    if (!newEntry.platform || newEntry.balance <= 0) {
+      alert('Please fill in platform and balance');
       return;
     }
     
-    if (await assetStore.addEntry(newEntry)) {
-      showAddForm = false;
-      showDateInput = false;
+    // Auto-determine transaction type and data quality
+    const isContribution = newEntry.contributions > 0;
+    
+    const entryToAdd: Omit<AssetEntry, 'id'> = {
+      date: newEntry.date,
+      platform: newEntry.platform,
+      amount: newEntry.balance,
+      rate: newEntry.expectedReturn,
+      transactionType: isContribution ? 'contribution' : 'snapshot',
+      contributionAmount: isContribution ? newEntry.contributions : undefined,
+      dataQuality: isContribution ? 'enhanced' : 'snapshot_only'
+    };
+    
+    if (await assetStore.addEntry(entryToAdd)) {
+      // Reset form
       newEntry = {
         date,
         platform: '',
-        amount: 0,
-        rate: 0
+        balance: 0,
+        contributions: 0,
+        expectedReturn: 0
       };
+      showAddForm = false;
     } else {
-      alert('Failed to add new entry');
+      alert('Failed to add entry');
     }
-  }
-  
-  // Helper to reveal date picker
-  function requestDateChange() {
-    showDateInput = true;
   }
 </script>
 
@@ -132,7 +143,7 @@
     
     <div class="table-actions">
       {#if !editMode}
-        <button class="secondary" on:click={toggleAddForm}>
+        <button class="secondary" on:click={() => showAddForm = !showAddForm}>
           {showAddForm ? 'Cancel' : 'Add Asset'}
         </button>
       {/if}
@@ -151,27 +162,20 @@
   
   {#if showAddForm}
     <div class="add-form">
+      <h4>Add Asset Entry</h4>
+      <p class="form-description">
+        Record your account balance. Add contributions if you deposited money this period.
+      </p>
+      
       <div class="form-grid">
-        <!-- Date (defaults to slider date) -->
-        <div class="form-group date-group">
-          <label for="assetDate">Date</label>
-          {#if showDateInput}
-            <input type="date" id="assetDate" bind:value={newEntry.date} />
-          {:else}
-            <div class="date-display">
-              <span>{newEntry.date}</span>
-              <button class="link-button" on:click={requestDateChange}>(Change)</button>
-            </div>
-          {/if}
-        </div>
-        <!-- Platform -->
         <div class="form-group">
-          <label for="platform">Platform</label>
+          <label for="add-platform">Platform</label>
           <input 
+            id="add-platform"
             type="text" 
-            id="platform" 
             bind:value={newEntry.platform}
-            list="platform-list" 
+            list="platform-list"
+            placeholder="e.g. Wealthfront, 401k, Savings"
           />
           <datalist id="platform-list">
             {#each uniquePlatforms as platform}
@@ -181,30 +185,43 @@
         </div>
         
         <div class="form-group">
-          <label for="amount">Amount</label>
+          <label for="add-balance">Current Balance ($)</label>
           <input 
+            id="add-balance"
             type="number" 
-            id="amount" 
-            bind:value={newEntry.amount} 
+            bind:value={newEntry.balance} 
             step="0.01"
+            placeholder="10000"
           />
         </div>
         
         <div class="form-group">
-          <label for="rate">Expected Rate (%)</label>
+          <label for="add-contributions">Contributions This Period ($)</label>
           <input 
+            id="add-contributions"
             type="number" 
-            id="rate" 
-            bind:value={newEntry.rate} 
-            max="100" 
+            bind:value={newEntry.contributions} 
+            step="0.01"
+            placeholder="0"
+          />
+          <small class="help-text">Leave as 0 if no money was added</small>
+        </div>
+        
+        <div class="form-group">
+          <label for="add-expected-return">Expected Annual Return (%)</label>
+          <input 
+            id="add-expected-return"
+            type="number" 
+            bind:value={newEntry.expectedReturn} 
             step="0.1"
+            placeholder="7.0"
           />
         </div>
       </div>
       
       <div class="form-actions">
-        <button on:click={toggleAddForm} class="secondary">Cancel</button>
-        <button on:click={addNewEntry}>Add Asset</button>
+        <button on:click={() => showAddForm = false} class="secondary">Cancel</button>
+        <button on:click={addEntry} class="primary">Add Entry</button>
       </div>
     </div>
   {/if}
@@ -215,6 +232,7 @@
         <tr>
           <th>Platform</th>
           <th>Amount</th>
+          <th>Contributions</th>
           <th>Expected Rate</th>
           <th>Allocation %</th>
           {#if editMode}
@@ -224,7 +242,6 @@
       </thead>
       <tbody>
         {#if editMode}
-          <!-- Edit Mode: Loop over editedEntries -->
           {#each editedEntries as entry (entry.id)}
             <tr>
               <td>
@@ -239,6 +256,16 @@
                   type="number" 
                   bind:value={entry.amount} 
                   step="0.01"
+                  placeholder="Account balance"
+                />
+              </td>
+              <td>
+                <input 
+                  type="number" 
+                  bind:value={entry.contributionAmount} 
+                  step="0.01"
+                  placeholder="0"
+                  on:input={() => updateEntryDataQuality(entry)}
                 />
               </td>
               <td>
@@ -247,6 +274,7 @@
                   bind:value={entry.rate} 
                   max="100" 
                   step="0.1"
+                  placeholder="7.0"
                 />
               </td>
               <td><!-- Percentage column empty in edit mode --></td> 
@@ -259,33 +287,35 @@
                 </button>
               </td>
             </tr>
-          {:else} <!-- Handles empty editedEntries -->
+          {:else}
             <tr>
-              <td colspan={5} class="no-data">
+              <td colspan={6} class="no-data">
                 No assets for this date
               </td>
             </tr>
-          {/each} <!-- Closes each editedEntries -->
+          {/each}
         {:else}
-          <!-- Display Mode: Loop over allocations -->
           {#if allocations.length === 0}
             <tr>
-              <td colspan={4} class="no-data">
+              <td colspan={5} class="no-data">
                 No assets for this date
               </td>
             </tr>
           {:else}
             {#each allocations as entry (entry.id)}
               <tr>
+                <td>{entry.platform}</td>
+                <td>{formatCurrency(entry.amount)}</td>
                 <td>
-                  {entry.platform}
+                  {#if entry.contributionAmount}
+                    <span class="contribution-amount">+{formatCurrency(entry.contributionAmount)}</span>
+                    <span class="type-indicator">(Contribution)</span>
+                  {:else}
+                    <span class="no-contribution">—</span>
+                    <span class="type-indicator">(Snapshot)</span>
+                  {/if}
                 </td>
-                <td>
-                  {formatCurrency(entry.amount)}
-                </td>
-                <td>
-                  {formatPercentage(entry.rate)}
-                </td>
+                <td>{formatPercentage(entry.rate)}</td>
                 <td>{formatPercentage(entry.percentage)}</td>
               </tr>
             {/each}
@@ -296,6 +326,7 @@
         <tr>
           <th>Total</th>
           <th>{formatCurrency(totalAmount)}</th>
+          <th>{formatCurrency(editedEntries.reduce((sum, entry) => sum + (entry.contributionAmount || 0), 0))}</th>
           <th></th>
           <th>100%</th>
           {#if editMode}
@@ -364,18 +395,30 @@
   }
   
   .add-form {
-    background-color: rgba(95, 116, 100, 0.05);
+    background: rgba(95, 116, 100, 0.02);
+    border: 1px solid rgba(95, 116, 100, 0.1);
     border-radius: var(--border-radius-sm);
     padding: var(--space-md);
     margin-bottom: var(--space-md);
-    border-top: 1px solid var(--color-stone-gray);
-    border-bottom: 1px solid var(--color-stone-gray);
+  }
+  
+  .add-form h4 {
+    margin: 0 0 var(--space-xs) 0;
+    color: var(--color-forest-dark);
+  }
+  
+  .form-description {
+    margin: 0 0 var(--space-md) 0;
+    color: var(--color-stone-gray);
+    font-size: 0.9rem;
+    font-style: italic;
   }
   
   .form-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: var(--space-md);
+    margin-bottom: var(--space-md);
   }
   
   .form-group {
@@ -384,50 +427,47 @@
     gap: var(--space-xs);
   }
   
+  .form-group label {
+    font-weight: 500;
+    color: var(--color-forest-dark);
+    font-size: 0.9rem;
+  }
+  
+  .form-group input {
+    border: 1px solid var(--color-stone-gray);
+    border-radius: var(--border-radius-sm);
+    padding: var(--space-sm);
+  }
+  
+  .help-text {
+    font-size: 0.8rem;
+    color: var(--color-stone-gray);
+    font-style: italic;
+  }
+  
   .form-actions {
     display: flex;
     justify-content: flex-end;
     gap: var(--space-sm);
-    margin-top: var(--space-md);
   }
   
-  .form-group input,
-  .form-group select {
-    border: 1px solid var(--color-stone-gray);
-  }
-  
-  .date-display {
-    padding: 0.6rem 0.8rem;
-    border: 1px solid var(--color-stone-gray);
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-  }
-  
-  .link-button {
-    background: none;
-    border: none;
+  .type-indicator {
+    font-size: 0.75rem;
     color: var(--color-stone-gray);
-    cursor: pointer;
-    padding: 0 0 0 0.3rem;
-    font-size: 0.8rem;
-    text-decoration: none;
-    transition: color 0.2s ease;
+    font-style: italic;
+    margin-left: var(--space-xs);
   }
-  
-  .link-button:hover {
-    color: var(--color-green);
+
+  .contribution-amount {
+    color: var(--color-positive);
+    font-weight: 500;
   }
-  
-  .styled-select {
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' stroke='%239B9B93' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 0.8rem center;
-    background-size: 1rem;
-    padding-right: 2rem;
+
+  .no-contribution {
+    color: var(--color-stone-gray);
+    font-style: italic;
   }
-  
+
   @media (max-width: 768px) {
     .table-header {
       flex-direction: column;
@@ -435,8 +475,52 @@
       gap: var(--space-sm);
     }
     
+    .table-actions {
+      width: 100%;
+    }
+    
+    .table-actions button {
+      flex: 1;
+      min-height: 44px;
+      font-size: 0.9rem;
+    }
+    
     .form-grid {
       grid-template-columns: 1fr;
+    }
+    
+    .form-actions {
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+    
+    .form-actions button {
+      width: 100%;
+      min-height: 44px;
+      font-size: 1rem;
+    }
+    
+    table {
+      min-width: 600px;
+    }
+    
+    .table-responsive {
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    th, td {
+      padding: var(--space-xs);
+      font-size: 0.9rem;
+    }
+    
+    .type-indicator {
+      display: block;
+      margin-left: 0;
+      margin-top: var(--space-xs);
+    }
+    
+    .allocation-table {
+      padding: var(--space-sm);
     }
   }
 </style>

@@ -168,14 +168,4 @@
     color: var(--color-deep-brown);
     background-color: rgba(0,0,0,0.05);
   }
-
-  /* Still need body context for dark mode override */
-  body.dark-mode :global(.theme-toggle) {
-    color: var(--color-parchment);
-  }
-
-  body.dark-mode :global(.theme-toggle:hover) {
-    color: var(--color-sky-blue);
-    background-color: rgba(255,255,255,0.1);
-  }
 </style>

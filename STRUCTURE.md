@@ -31,12 +31,19 @@ Self‑contained UI components.  They only manage presentation logic and emit ev
 
 * `Header.svelte` – Top navigation bar with theme toggle.
 * `DateSlider.svelte` – Interactive timeline selector for snapshot dates.
-* `KeyMetrics.svelte` – Displays high‑level portfolio statistics.
-* `AllocationTable.svelte` – Editable table of platform holdings.
-* `AllocationChart.svelte` – Donut chart of portfolio allocation (Chart.js).
+* `EnhancedKeyMetrics.svelte` – Displays high‑level portfolio statistics with analytics.
+* `AllocationTable.svelte` – Editable table of platform holdings with simplified snapshot/contribution model and automatic transaction type detection.
+* `AllocationChart.svelte` – Donut chart of portfolio allocation (Chart.js) with platform/tag toggle and helpful guidance when no tags are assigned.
 * `PortfolioEvolutionChart.svelte` – Stacked area chart showing value over time.
 * `PlatformPerformance.svelte` – Bar chart comparing platform performance.
 * `ImportExport.svelte` – UI for CSV import/export and clearing data.
+* `CSVFormatModal.svelte` – Modal dialog for CSV format guide and documentation.
+* `DataQualityIndicator.svelte` – Shows data quality status and available analytics.
+* `WelcomeOnboarding.svelte` – 4-step interactive onboarding flow for new users.
+* `EmptyState.svelte` – Reusable empty state component with contextual guidance and actions.
+* `PlatformTagEditor.svelte` – Platform tagging system for custom groupings.
+* `RiskAnalysisDashboard.svelte` – Comprehensive risk analysis dashboard with volatility, drawdown, and diversification metrics.
+* `KeyMetrics.svelte` – Legacy key metrics component.
 
 ### `src/lib/stores/`
 Centralised state management using Svelte stores.
@@ -52,7 +59,50 @@ Pure helper functions – **no DOM or store access**.
 ### `src/lib/db/`
 Simple data‑access layer that wraps IndexedDB (`idb` package) with typed helper functions.
 
-* `index.ts` – Schema definition, allowed platforms list and CRUD helpers.
+* `index.ts` – Simplified schema with snapshot and contribution transaction types.
+
+### `src/lib/analytics/`
+Professional-grade analytics engine for investment performance calculations.
+
+#### `src/lib/analytics/core/`
+* `performance.ts` – TWR, MWR, CAGR calculations with mixed data quality handling.
+
+#### `src/lib/analytics/risk/`
+* `index.ts` – Risk analysis engine with volatility, drawdown, VaR calculations, and diversification metrics.
+
+#### `src/lib/analytics/types/`
+* `metrics.ts` – Type definitions for performance and cash flow metrics.
+
+### **Analytics System**
+
+**Core Analytics** (`src/lib/analytics/`):
+* `index.ts` – Main analytics API with enhanced summary calculations.
+* `core/` – Core calculation functions (summary, grouping, time-series).
+* `performance/` – Performance metrics (TWR, MWR, CAGR, volatility).
+* `risk/` – **SMART RISK ANALYSIS** with data quality detection and TWR-based calculations.
+* `goals/` – Goal tracking and progress analysis.
+* `types/metrics.ts` – Comprehensive TypeScript interfaces for all analytics.
+
+**Smart Risk Analysis Features**:
+* **Data Quality Detection**: Automatically detects ENHANCED (with contributions) vs SNAPSHOT_ONLY data
+* **TWR-Based Calculations**: Proper Time-Weighted Return calculations for investment risk metrics
+* **Smart Hiding**: Hides misleading metrics instead of showing wrong numbers with warnings
+* **Educational UX**: Clear explanations of what's missing and how to unlock more features
+* **Sanity Checks**: Volatility validation (5-50% range) and extreme return filtering
+
+## Data Model (Simplified)
+
+The application now uses a clean, minimal data model:
+
+**Transaction Types:**
+- `snapshot`: Total account balance at a point in time
+- `contribution`: Money added to the account (requires contributionAmount)
+
+**Data Quality:**
+- `enhanced`: Entries with contribution data for proper analytics
+- `snapshot_only`: Legacy snapshot-only data
+
+This simplified model ensures clean analytics while maintaining backward compatibility.
 
 ## Development workflow
 

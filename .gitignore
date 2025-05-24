@@ -19,6 +19,7 @@ node_modules
 /coverage
 *.local
 
+
 # Environment variables
 .env
 .env.*
@@ -26,6 +27,7 @@ node_modules
 
 # Editor directories and files
 .vscode/*
+.history/*
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea
@@ -38,3 +40,7 @@ node_modules
 
 # Typescript
 *.tsbuildinfo
+
+# Data & Custom Files
+*.csv
+PLANNING.md
