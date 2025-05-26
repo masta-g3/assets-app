@@ -293,8 +293,8 @@
       label: key, // Will be "Total Portfolio" or platform name
       data: points.map(p => ({ x: parseDate(p.date, 'yyyy-MM-dd', new Date()).getTime(), y: p.value })),
       // Use a distinct color for "Total Portfolio", otherwise platform color
-      borderColor: key === "Total Portfolio" ? '#4A4A4A' : getPlatformColor(key),
-      backgroundColor: key === "Total Portfolio" ? 'rgba(74, 74, 74, 0.5)' : getPlatformColor(key, 0.5),
+      borderColor: key === "Total Portfolio" ? '#3A3D40' : getPlatformColor(key),
+      backgroundColor: key === "Total Portfolio" ? 'rgba(58, 61, 64, 0.5)' : getPlatformColor(key, 0.5),
       fill: false, tension: 0.1,
     }));
 
@@ -306,7 +306,7 @@
             type: 'line', // Explicitly define type here
             scaleID: 'x',
             value: parseDate(globalSelectedDate, 'yyyy-MM-dd', new Date()).getTime(),
-            borderColor: 'rgba(128, 128, 128, 0.7)', 
+            borderColor: 'rgba(155, 155, 147, 0.7)',
             borderWidth: 2, 
             borderDash: [6, 6],
             label: {
@@ -314,7 +314,7 @@
               display: true, 
               position: 'start', // Valid string literal as per documentation for line annotation labels
               font: { size: 10 }, 
-              color: 'rgba(128,128,128,0.7)',
+              color: 'rgba(155, 155, 147, 0.7)',
               // No explicit cast to LabelAnnotationOptions, relying on structural typing for the label object
             }
         };

@@ -5,19 +5,19 @@
   /* Color variables with Ghibli-inspired palette */
   --color-deep-brown: #6D5A50;     /* Earthy, muted brown (like forest floor in Totoro) */
   --color-stone-gray: #9B9B93;     /* Muted sage gray (like Howl's environment) */
-  --color-green: #657259;          /* Muted forest green (like Ghibli landscapes) */
-  --color-forest-green: #5F7464;   /* Forest green for components */
-  --color-forest-dark: #4A5C4F;    /* Darker forest green */
+  --color-green: #4A6B41;          /* Improved forest green (warmer, more vibrant) */
+  --color-forest-green: #5A8B5D;   /* Harmonized forest green for components */
+  --color-forest-dark: #3F5A36;    /* Darker forest green that harmonizes */
   --color-sandstone: #C2B099;      /* Soft, warm cream (like Spirited Away backgrounds) */
   --color-sky-blue: #A3C5E6;       /* Soft sky blue (like Castle in the Sky) */
   --color-ochre: #D99E68;          /* Warm, dusty orange (like Kiki's sunset) */
   --color-parchment: #F6F2EA;      /* Soft, warm paper tone (like hand-drawn backgrounds) */
   --color-slate: #3A3D40;          /* Deep but gentle slate (like ink drawings) */
-  --color-moss: #8A9A5B;           /* Soft moss green (like forest scenes) */
+  --color-moss: #7A8B5A;           /* Harmonized moss green (more golden undertone) */
   --color-dusty-rose: #C49A9A;     /* Gentle rose (like Spirited Away accents) */
   
   /* Accent colors */
-  --color-positive: #5B8C5A;       /* Softer green for positive values */
+  --color-positive: #6B8C62;       /* Harmonized green for positive values */
   --color-negative: #C25B5B;       /* Softer red for negative values */
   
   /* Spacing (slightly more generous for zen feel) */
@@ -418,7 +418,7 @@ body.dark-mode {
   --color-parchment: #2c2a26; /* Dark parchment */
   --color-stone-gray: #8a8a82; /* Light gray for dark bg */
   --color-slate: #eae6df; /* Light text */
-  --color-positive: #7fbf7c; /* Softer retro‑green (terminal vibe) */
+  --color-positive: #7FA56C; /* Harmonized retro-green for dark mode */
   --color-negative: #d97a68; /* Slightly muted red */
 
   background-color: var(--color-parchment);

@@ -330,19 +330,19 @@ export const formatPercentage = (value: number): string => {
 
 // Get the chart colors based on platform
 export const getPlatformColor = (platform: string, opacity: number = 1): string => {
-  // Original color palette for specific platforms
+  // Color palette for specific platforms (aligned with theme)
   const specificColorMap: Record<string, string> = {
-    'Wealthfront': '#5F7464', // vegetation green
-    'Robinhood': '#A7C5E8', // sky blue
-    'Real Estate': '#6B4F4F', // deep soil brown
-    'Checking': '#A0A0A0', // stone gray
-    'Savings': '#C0A183', // sandstone
-    'Retirement': '#D48C3F', // ochre for growth
-    'Stocks': '#81A969', // lighter green
-    'Bonds': '#B8997A', // light brown
-    'Crypto': '#6897BB', // blue-purple
-    'Cash': '#9CA3AF', // light gray
-    'Other': '#8B5A2B', // brown
+    'Wealthfront': '#5A8B5D', // harmonized forest green (from --color-forest-green)
+    'Robinhood': '#A3C5E6', // soft sky blue (from --color-sky-blue)
+    'Real Estate': '#6D5A50', // earthy brown (from --color-deep-brown)
+    'Checking': '#9B9B93', // muted sage gray (from --color-stone-gray)
+    'Savings': '#C2B099', // soft sandstone (from --color-sandstone)
+    'Retirement': '#D99E68', // warm ochre (from --color-ochre)
+    'Stocks': '#4A6B41', // main green (from --color-green)
+    'Bonds': '#7A8B5A', // harmonized moss green (from --color-moss)
+    'Crypto': '#A3C5E6', // soft sky blue (alternative)
+    'Cash': '#9B9B93', // stone gray (for cash equivalents)
+    'Other': '#C49A9A', // dusty rose (from --color-dusty-rose)
   };
 
   // Check if the platform has a specific color
@@ -351,29 +351,29 @@ export const getPlatformColor = (platform: string, opacity: number = 1): string 
     return applyOpacity(specificColor, opacity);
   }
 
-  // Extended palette for other platforms - using more muted/pastel tones
+  // Extended palette for other platforms - muted, earthy tones
   const extendedPalette: string[] = [
-    '#FFDAB9', // Light Salmon (was Orange)
-    '#AEC6CF', // Pastel Blue (was Sky Blue)
-    '#B2D8B4', // Pale Green (was Bluish Green)
-    '#FFFACD', // Lemon Chiffon (was Yellow)
-    '#A9CCE3', // Light Steel Blue (was Blue)
-    '#E07A5F', // Terracotta (was Vermillion)
-    '#D8BFD8', // Thistle (was Reddish Purple)
-    '#C3B1E1', // Light Lilac (was Purple)
-    '#D8A7B1', // Dusty Pink (was Rose)
-    '#FFA07A', // Light Coral (was Orange Red)
-    '#F4A460', // Sandy Brown (was Amber)
-    '#CCCCFF', // Lavender Blue (was Royal Blue)
-    '#77A8A8', // Dusty Teal (was Teal)
-    '#B19CD8', // Light Pastel Purple (was Purple)
-    '#CCCCCC'  // Light Gray (was Gray)
+    '#C2B099', // Soft sandstone (warm cream)
+    '#A3C5E6', // Soft sky blue
+    '#7A8B5A', // Harmonized moss green
+    '#D99E68', // Warm ochre
+    '#C49A9A', // Dusty rose
+    '#9B9B93', // Muted sage gray
+    '#5A8B5D', // Harmonized forest green
+    '#6D5A50', // Earthy brown
+    '#4A6B41', // Main forest green
+    '#3F5A36', // Darker forest green
+    '#B8A691', // Light sandstone variant
+    '#8FA3C7', // Muted sky blue variant
+    '#6B7C4A', // Darker moss variant
+    '#C18A5A', // Muted ochre variant
+    '#A68B8B'  // Muted rose variant
   ];
 
   // Use a simple hash function to get a consistent index for the platform
   const hash = platform.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const index = hash % extendedPalette.length;
-  const assignedColor = extendedPalette[index] || '#CCCCCC'; // Fallback gray
+  const assignedColor = extendedPalette[index] || '#9B9B93'; // Fallback to stone gray
 
   return applyOpacity(assignedColor, opacity);
 };
