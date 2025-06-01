@@ -166,7 +166,7 @@
       
       return {
         platform,
-        balance: 0,
+        balance: latestEntry?.amount || 0,
         contributions: 0,
         expectedReturn: latestEntry?.rate || 0,
         isNew: false
