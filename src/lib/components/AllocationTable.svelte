@@ -115,7 +115,7 @@
 
   // Add entry (auto-determines type based on contributions)
   async function addEntry() {
-    if (!newEntry.platform || newEntry.balance <= 0) {
+    if (!newEntry.platform || newEntry.balance === 0) {
       alert('Please fill in platform and balance');
       return;
     }
@@ -204,7 +204,7 @@
 
     // Validate entries
     const validEntries = bulkSnapshotEntries.filter(entry => 
-      entry.platform.trim() && entry.balance > 0
+      entry.platform.trim() && entry.balance !== 0
     );
 
     if (validEntries.length === 0) {
