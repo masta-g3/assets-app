@@ -32,7 +32,7 @@ Self‑contained UI components.  They only manage presentation logic and emit ev
 * `Header.svelte` – Top navigation bar with theme toggle.
 * `DateSlider.svelte` – Interactive timeline selector for snapshot dates.
 * `EnhancedKeyMetrics.svelte` – Displays high‑level portfolio statistics with analytics.
-* `AllocationTable.svelte` – Editable table of platform holdings with simplified snapshot/contribution model and automatic transaction type detection.
+* `AllocationTable.svelte` – Editable table of platform holdings with simplified snapshot/contribution model, automatic transaction type detection, and bulk snapshot functionality for efficient monthly updates.
 * `AllocationChart.svelte` – Donut chart of portfolio allocation (Chart.js) with platform/tag toggle and helpful guidance when no tags are assigned.
 * `PortfolioEvolutionChart.svelte` – Stacked area chart showing value over time.
 * `PlatformPerformance.svelte` – Bar chart comparing platform performance.

@@ -9,6 +9,7 @@
   let editMode = false;
   let editedEntries: AssetEntry[] = [];
   let showAddForm = false;
+  let showBulkSnapshotModal = false;
   
   // Single simple entry form
   let newEntry = {
@@ -19,6 +20,16 @@
     expectedReturn: 0
   };
   
+  // Bulk snapshot form
+  let bulkSnapshotDate = '';
+  let bulkSnapshotEntries: Array<{
+    platform: string;
+    balance: number;
+    contributions: number;
+    expectedReturn: number;
+    isNew?: boolean;
+  }> = [];
+  
   // Update edited entries when entries change
   $: {
     editedEntries = entries.map(entry => ({ ...entry }));
@@ -26,6 +37,7 @@
     // Set default date for new entry
     if (date) {
       newEntry.date = date;
+      bulkSnapshotDate = date;
     }
   }
   
@@ -135,7 +147,123 @@
       alert('Failed to add entry');
     }
   }
+
+  // Initialize bulk snapshot form
+  function initializeBulkSnapshot() {
+    // Set date to today
+    const today = new Date();
+    bulkSnapshotDate = today.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+    
+    // Start with existing platforms from this date or previous dates
+    const existingPlatforms = [...uniquePlatforms];
+    
+    // Get latest values for each platform as defaults
+    bulkSnapshotEntries = existingPlatforms.map(platform => {
+      // Find most recent entry for this platform
+      const latestEntry = $assetStore.assets
+        .filter(asset => asset.platform === platform)
+        .sort((a, b) => b.date.localeCompare(a.date))[0];
+      
+      return {
+        platform,
+        balance: 0,
+        contributions: 0,
+        expectedReturn: latestEntry?.rate || 0,
+        isNew: false
+      };
+    });
+    
+    showBulkSnapshotModal = true;
+  }
+
+  // Add new platform row to bulk snapshot
+  function addNewPlatformToBulk() {
+    bulkSnapshotEntries = [
+      ...bulkSnapshotEntries,
+      {
+        platform: '',
+        balance: 0,
+        contributions: 0,
+        expectedReturn: 0,
+        isNew: true
+      }
+    ];
+  }
+
+  // Remove platform row from bulk snapshot
+  function removePlatformFromBulk(index: number) {
+    bulkSnapshotEntries = bulkSnapshotEntries.filter((_, i) => i !== index);
+  }
+
+  // Submit bulk snapshot
+  async function submitBulkSnapshot() {
+    if (!bulkSnapshotDate) {
+      alert('Please select a date');
+      return;
+    }
+
+    // Validate entries
+    const validEntries = bulkSnapshotEntries.filter(entry => 
+      entry.platform.trim() && entry.balance > 0
+    );
+
+    if (validEntries.length === 0) {
+      alert('Please add at least one valid entry with platform name and balance');
+      return;
+    }
+
+    // Create entries to add
+    const entriesToAdd = validEntries.map(entry => {
+      const isContribution = entry.contributions > 0;
+      
+      return {
+        date: bulkSnapshotDate,
+        platform: entry.platform.trim(),
+        amount: entry.balance,
+        rate: entry.expectedReturn,
+        transactionType: isContribution ? 'contribution' : 'snapshot',
+        contributionAmount: isContribution ? entry.contributions : undefined,
+        dataQuality: isContribution ? 'enhanced' : 'snapshot_only'
+      } as Omit<AssetEntry, 'id'>;
+    });
+
+    // Add all entries
+    let success = true;
+    for (const entry of entriesToAdd) {
+      if (!await assetStore.addEntry(entry)) {
+        success = false;
+        break;
+      }
+    }
+
+    if (success) {
+      showBulkSnapshotModal = false;
+      bulkSnapshotEntries = [];
+    } else {
+      alert('Failed to add some entries');
+    }
+  }
+
+  // Close modal helpers
+  function closeBulkSnapshotModal() {
+    showBulkSnapshotModal = false;
+    bulkSnapshotEntries = [];
+  }
+
+  function handleModalEscape(event: KeyboardEvent) {
+    if (event.key === 'Escape' && showBulkSnapshotModal) {
+      closeBulkSnapshotModal();
+    }
+  }
+
+  function handleModalOverlayClick(event: MouseEvent) {
+    if (event.target === event.currentTarget) {
+      closeBulkSnapshotModal();
+    }
+  }
 </script>
+
+<svelte:window on:keydown={handleModalEscape} />
 
 <div class="allocation-table card">
   <div class="table-header">
@@ -143,6 +271,9 @@
     
     <div class="table-actions">
       {#if !editMode}
+        <button class="secondary" on:click={initializeBulkSnapshot}>
+          New Snapshot
+        </button>
         <button class="secondary" on:click={() => showAddForm = !showAddForm}>
           {showAddForm ? 'Cancel' : 'Add Asset'}
         </button>
@@ -168,6 +299,16 @@
       </p>
       
       <div class="form-grid">
+        <div class="form-group">
+          <label for="add-date">Date</label>
+          <input 
+            id="add-date"
+            type="date" 
+            bind:value={newEntry.date}
+          />
+          <small class="help-text">Defaults to current selected date</small>
+        </div>
+        
         <div class="form-group">
           <label for="add-platform">Platform</label>
           <input 
@@ -337,6 +478,121 @@
     </table>
   </div>
 </div>
+
+<!-- Bulk Snapshot Modal -->
+{#if showBulkSnapshotModal}
+  <div class="modal-overlay" on:click={handleModalOverlayClick} on:keydown={handleModalEscape} role="dialog" aria-modal="true" tabindex="-1">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h2>New Snapshot</h2>
+        <p class="subtitle">Record current portfolio balances for multiple platforms</p>
+        <button class="close-btn" on:click={closeBulkSnapshotModal} aria-label="Close">
+          ✕
+        </button>
+      </div>
+      
+      <div class="modal-content">
+        <div class="form-group">
+          <label for="bulk-date">Snapshot Date</label>
+          <input 
+            id="bulk-date"
+            type="date" 
+            bind:value={bulkSnapshotDate}
+          />
+        </div>
+
+        <div class="bulk-table-container">
+          <table class="bulk-table">
+            <thead>
+              <tr>
+                <th>Platform</th>
+                <th>Current Balance ($)</th>
+                <th>Contributions ($)</th>
+                <th>Expected Return (%)</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each bulkSnapshotEntries as entry, index (index)}
+                <tr>
+                  <td>
+                    {#if entry.isNew}
+                                             <input 
+                         type="text" 
+                         bind:value={entry.platform}
+                         placeholder="Platform name"
+                         list="platform-list-bulk"
+                       />
+                    {:else}
+                      <span class="platform-name">{entry.platform}</span>
+                    {/if}
+                  </td>
+                  <td>
+                    <input 
+                      type="number" 
+                      bind:value={entry.balance}
+                      step="0.01"
+                      placeholder="0"
+                    />
+                  </td>
+                  <td>
+                    <input 
+                      type="number" 
+                      bind:value={entry.contributions}
+                      step="0.01"
+                      placeholder="0"
+                    />
+                  </td>
+                  <td>
+                    <input 
+                      type="number" 
+                      bind:value={entry.expectedReturn}
+                      step="0.1"
+                      placeholder="7.0"
+                    />
+                  </td>
+                  <td>
+                    {#if entry.isNew}
+                      <button 
+                        class="remove-btn" 
+                        on:click={() => removePlatformFromBulk(index)}
+                        aria-label="Remove platform"
+                      >
+                        ✕
+                      </button>
+                    {/if}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+
+                 <div class="modal-actions">
+           <button class="secondary" on:click={addNewPlatformToBulk}>
+             + Add New Platform
+           </button>
+         </div>
+
+         <!-- Platform datalist for modal -->
+         <datalist id="platform-list-bulk">
+           {#each uniquePlatforms as platform}
+             <option value={platform}>{platform}</option>
+           {/each}
+         </datalist>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="secondary" on:click={closeBulkSnapshotModal}>
+          Cancel
+        </button>
+        <button class="primary" on:click={submitBulkSnapshot}>
+          Create Snapshot
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .allocation-table {
@@ -521,6 +777,189 @@
     
     .allocation-table {
       padding: var(--space-sm);
+    }
+  }
+
+  /* Modal Styles */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: var(--space-md);
+  }
+  
+  .modal-container {
+    background: white;
+    border-radius: var(--border-radius-lg);
+    max-width: 900px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+    position: relative;
+  }
+  
+  .modal-header {
+    padding: var(--space-lg);
+    text-align: center;
+    border-bottom: 1px solid var(--color-stone-gray);
+    position: relative;
+  }
+  
+  .modal-header h2 {
+    margin: 0 0 var(--space-xs) 0;
+    color: var(--color-deep-brown);
+  }
+  
+  .subtitle {
+    margin: 0;
+    color: var(--color-slate);
+    font-size: 1.1rem;
+  }
+  
+  .close-btn {
+    position: absolute;
+    top: var(--space-md);
+    right: var(--space-md);
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--color-slate);
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+  
+  .close-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--color-deep-brown);
+  }
+  
+  .modal-content {
+    padding: var(--space-lg);
+  }
+  
+  .bulk-table-container {
+    margin: var(--space-md) 0;
+    border: 1px solid var(--color-stone-gray);
+    border-radius: var(--border-radius-sm);
+    overflow-x: auto;
+  }
+  
+  .bulk-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+  }
+  
+  .bulk-table th,
+  .bulk-table td {
+    padding: var(--space-sm);
+    text-align: left;
+    border-bottom: 1px solid var(--color-stone-gray);
+  }
+  
+  .bulk-table th {
+    font-weight: 600;
+    background-color: rgba(95, 116, 100, 0.1);
+  }
+  
+  .bulk-table tbody tr:hover {
+    background-color: rgba(95, 116, 100, 0.05);
+  }
+  
+  .bulk-table input[type="text"],
+  .bulk-table input[type="number"] {
+    width: 100%;
+    border: 1px solid var(--color-stone-gray);
+    border-radius: var(--border-radius-sm);
+    padding: var(--space-xs);
+    font-size: 0.9rem;
+  }
+  
+  .platform-name {
+    font-weight: 500;
+    color: var(--color-forest-dark);
+  }
+  
+  .remove-btn {
+    background: none;
+    border: none;
+    color: var(--color-danger);
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+  }
+  
+  .remove-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+  }
+  
+  .modal-actions {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: var(--space-md);
+  }
+  
+  .modal-footer {
+    padding: var(--space-lg);
+    border-top: 1px solid var(--color-stone-gray);
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-sm);
+  }
+  
+  @media (max-width: 768px) {
+    .modal-container {
+      margin: var(--space-sm);
+      max-height: 95vh;
+    }
+    
+    .modal-header,
+    .modal-content,
+    .modal-footer {
+      padding: var(--space-md);
+    }
+    
+    .bulk-table-container {
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    .bulk-table {
+      min-width: 600px;
+    }
+    
+    .bulk-table th,
+    .bulk-table td {
+      padding: var(--space-xs);
+      font-size: 0.8rem;
+    }
+    
+    .modal-footer {
+      flex-direction: column;
+    }
+    
+    .modal-footer button {
+      width: 100%;
+      min-height: 44px;
     }
   }
 </style>

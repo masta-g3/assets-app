@@ -44,3 +44,6 @@ node_modules
 # Data & Custom Files
 *.csv
 PLANNING.md
+CHANGES.md
+
+package-lock.json
